@@ -1,0 +1,1753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>LandSight — Land Photo Mapper</title>
+    <!-- PWA -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LandSight">
+    <meta name="theme-color" content="#13161f">
+    <link rel="manifest" id="pwa-manifest">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        #header { background: #13161f; border-bottom: 1px solid #1e2235; padding: 10px 14px; display: flex; align-items: center; gap: 8px; z-index: 100; flex-shrink: 0; }
+        #header-logo { color: #3b82f6; display: flex; align-items: center; flex-shrink: 0; }
+        #header h1 { font-size: 16px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; white-space: nowrap; }
+        #header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+        .hbtn { padding: 6px 11px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 6px; color: #94a3b8; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+        .hbtn:hover { background: #252a3d; color: #e2e8f0; }
+        .hbtn:disabled { opacity: 0.4; cursor: default; }
+        .hbtn.publish { background: #065f46; border-color: #059669; color: #6ee7b7; font-weight: 700; }
+        .hbtn.publish:hover:not(:disabled) { background: #047857; }
+        .hbtn.icon-btn { padding: 6px 8px; }
+
+        #app { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+
+        #sidebar { width: 268px; background: #13161f; border-right: 1px solid #1e2235; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+        #sidebar-upload { padding: 10px; border-bottom: 1px solid #1e2235; display: flex; flex-direction: column; gap: 6px; }
+        .sb-btn { width: 100%; padding: 8px 12px; border: none; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: background 0.15s; }
+        .sb-btn.blue  { background: #1d4ed8; color: white; }
+        .sb-btn.blue:hover  { background: #2563eb; }
+        .sb-btn.amber { background: #78350f; color: #fcd34d; border: 1px solid #92400e; }
+        .sb-btn.amber:hover { background: #92400e; }
+        input[type="file"] { display: none; }
+        .sb-section-hdr { padding: 9px 12px 5px; font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; display: flex; align-items: center; justify-content: space-between; }
+        .sb-count { background: #1e2235; color: #64748b; padding: 1px 6px; border-radius: 8px; font-size: 10px; }
+        #photo-list { flex: 1; overflow-y: auto; padding: 4px 8px; min-height: 40px; }
+        #photo-list::-webkit-scrollbar { width: 3px; }
+        #photo-list::-webkit-scrollbar-thumb { background: #1e2235; border-radius: 2px; }
+        #parcel-section { border-top: 1px solid #1e2235; flex-shrink: 0; }
+        #parcel-list { overflow-y: auto; max-height: 150px; padding: 4px 8px 6px; }
+        #parcel-list::-webkit-scrollbar { width: 3px; }
+        #parcel-list::-webkit-scrollbar-thumb { background: #1e2235; border-radius: 2px; }
+        .photo-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; cursor: pointer; transition: background 0.12s; border: 1px solid transparent; margin-bottom: 2px; }
+        .photo-item:hover { background: #1a1e2e; }
+        .photo-item.active { background: #172035; border-color: #2563eb40; }
+        .photo-thumb { width: 40px; height: 40px; border-radius: 6px; object-fit: cover; flex-shrink: 0; background: #1e2235; }
+        .photo-info { flex: 1; min-width: 0; }
+        .photo-name { font-size: 11px; font-weight: 500; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .photo-badges { display: flex; gap: 3px; margin-top: 3px; flex-wrap: wrap; }
+        .badge { display: inline-flex; align-items: center; gap: 2px; padding: 1px 5px; border-radius: 4px; font-size: 9px; font-weight: 700; line-height: 1.6; }
+        .b-gps { background: #052e16; color: #4ade80; }
+        .b-nogps { background: #2d1515; color: #f87171; }
+        .b-hdg { background: #0c1a3d; color: #60a5fa; }
+        .parcel-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 7px; margin-bottom: 2px; border: 1px solid #1e2235; background: #0f1117; }
+        .parcel-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+        .parcel-info { flex: 1; min-width: 0; }
+        .parcel-name { font-size: 11px; font-weight: 500; color: #cbd5e1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .parcel-meta { font-size: 10px; color: #475569; margin-top: 1px; }
+        .parcel-actions { display: flex; gap: 4px; flex-shrink: 0; }
+        .pi-btn { width: 22px; height: 22px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 5px; cursor: pointer; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: all 0.12s; }
+        .pi-btn:hover { background: #252a3d; color: #e2e8f0; }
+        .pi-btn.danger:hover { background: #2d1515; color: #f87171; border-color: #7f1d1d; }
+        .pi-btn.muted { opacity: 0.4; }
+        #sidebar-footer { padding: 8px 12px; border-top: 1px solid #1e2235; font-size: 10px; color: #374151; flex-shrink: 0; }
+        #mobile-session-row { display: none; }
+        #parcel-search-box { padding: 8px 10px; border-bottom: 1px solid #1e2235; flex-shrink: 0; }
+        #parcel-search-row { display: flex; gap: 6px; }
+        #parcel-search-input { flex: 1; padding: 8px 10px; background: #0f1117; border: 1px solid #2a2f45; border-radius: 7px; color: #e2e8f0; font-size: 13px; outline: none; }
+        #parcel-search-input:focus { border-color: #f59e0b; }
+        #parcel-search-input::placeholder { color: #374151; }
+        #parcel-search-btn { padding: 8px 10px; background: #78350f; border: 1px solid #92400e; border-radius: 7px; color: #fcd34d; cursor: pointer; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        #parcel-search-btn:hover { background: #92400e; }
+        #search-suggestions { display: none; margin-top: 4px; border-radius: 7px; border: 1px solid #2a2f45; background: #0f1117; overflow: hidden; max-height: 220px; overflow-y: auto; }
+        #search-suggestions.open { display: block; }
+        .suggestion-item { padding: 9px 12px; cursor: pointer; border-bottom: 1px solid #1e2235; }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover, .suggestion-item.active { background: #1e2235; }
+        .suggestion-label { font-size: 13px; color: #e2e8f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .suggestion-sub { font-size: 11px; color: #475569; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #county-section { border-top: 1px solid #1e2235; flex-shrink: 0; }
+        #county-section .sb-section-hdr { cursor: pointer; user-select: none; }
+        #county-section .sb-section-hdr:hover { color: #64748b; }
+        #county-list { overflow-y: auto; max-height: 220px; padding: 4px 8px 8px; }
+        #county-list::-webkit-scrollbar { width: 3px; }
+        #county-list::-webkit-scrollbar-thumb { background: #1e2235; border-radius: 2px; }
+        .county-item { margin-bottom: 6px; border: 1px solid #1e2235; border-radius: 7px; overflow: hidden; background: #0f1117; }
+        .county-name { padding: 6px 10px 4px; font-size: 11px; font-weight: 600; color: #94a3b8; letter-spacing: 0.02em; }
+        .county-links { display: flex; gap: 4px; padding: 0 8px 7px; }
+        .county-link { flex: 1; padding: 5px 6px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 5px; color: #64748b; font-size: 10px; font-weight: 600; text-decoration: none; text-align: center; transition: all 0.12s; cursor: pointer; }
+        .county-link:hover { background: #252a3d; color: #e2e8f0; border-color: #3b4560; }
+        .county-link.map { color: #60a5fa; border-color: #1d3a6e; background: #0e1f3d; }
+        .county-link.map:hover { background: #132951; color: #93c5fd; }
+        .county-link.data { color: #f59e0b; border-color: #78350f; background: #1a0e00; }
+        .county-link.data:hover { background: #271500; color: #fcd34d; }
+
+        #map-container { flex: 1; position: relative; min-width: 0; }
+        #map { width: 100%; height: 100%; }
+        #map-controls { position: absolute; bottom: 28px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
+        .mc-btn { width: 34px; height: 34px; background: #13161f; border: 1px solid #1e2235; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; transition: all 0.15s; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+        .mc-btn:hover { background: #1a1e2e; color: #e2e8f0; border-color: #2a2f45; }
+        #drop-overlay { position: absolute; inset: 0; background: rgba(29,78,216,0.12); border: 3px dashed #3b82f6; z-index: 999; display: none; align-items: center; justify-content: center; pointer-events: none; }
+        #drop-overlay.active { display: flex; }
+        #drop-inner { background: #13161f; border: 1px solid #2563eb; border-radius: 14px; padding: 20px 32px; text-align: center; }
+        #drop-inner p { font-size: 16px; font-weight: 700; color: #60a5fa; }
+        #drop-inner span { font-size: 12px; color: #475569; }
+        #empty-state { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); text-align: center; pointer-events: none; z-index: 400; }
+        #empty-state div { font-size: 40px; margin-bottom: 12px; opacity: 0.2; }
+        #empty-state h3 { font-size: 16px; color: rgba(255,255,255,0.2); margin-bottom: 6px; font-weight: 600; }
+        #empty-state p { font-size: 13px; color: rgba(255,255,255,0.1); max-width: 240px; line-height: 1.5; }
+
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 10000; display: none; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(4px); }
+        .modal-overlay.open { display: flex; }
+        .modal-box { background: #13161f; border-radius: 16px; overflow: hidden; max-width: 520px; width: 100%; border: 1px solid #1e2235; box-shadow: 0 25px 60px rgba(0,0,0,0.7); position: relative; }
+        .modal-header { padding: 18px 20px 14px; border-bottom: 1px solid #1e2235; display: flex; align-items: center; justify-content: space-between; }
+        .modal-header h2 { font-size: 15px; font-weight: 700; color: #f1f5f9; }
+        .modal-close-x { background: #1e2235; border: 1px solid #2a2f45; color: #94a3b8; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+        .modal-close-x:hover { background: #252a3d; color: white; }
+        .modal-body { padding: 18px 20px 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 12px; font-weight: 600; color: #94a3b8; margin-bottom: 6px; }
+        .form-input { width: 100%; padding: 9px 12px; background: #0f1117; border: 1px solid #2a2f45; border-radius: 7px; color: #e2e8f0; font-size: 13px; outline: none; transition: border-color 0.15s; }
+        .form-input:focus { border-color: #3b82f6; }
+        .form-hint { font-size: 11px; color: #475569; margin-top: 5px; line-height: 1.5; }
+        .form-hint a { color: #3b82f6; text-decoration: none; }
+        .form-hint a:hover { text-decoration: underline; }
+        .modal-footer { padding: 0 20px 18px; display: flex; gap: 8px; justify-content: flex-end; }
+        .btn { padding: 8px 16px; border-radius: 7px; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid; transition: all 0.15s; }
+        .btn-primary { background: #1d4ed8; border-color: #2563eb; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-ghost { background: transparent; border-color: #2a2f45; color: #64748b; }
+        .btn-ghost:hover { background: #1e2235; color: #94a3b8; }
+
+        #photo-modal .modal-box { max-width: 860px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
+        #modal-img-wrap { flex-shrink: 0; background: #0a0c12; display: flex; align-items: center; justify-content: center; overflow: hidden; max-height: 52vh; }
+        #modal-img { max-width: 100%; max-height: 52vh; object-fit: contain; display: block; }
+        #modal-meta-wrap { padding: 16px 20px 20px; overflow-y: auto; }
+        #modal-filename { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #modal-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
+        .meta-card { background: #0f1117; border: 1px solid #1e2235; border-radius: 8px; padding: 10px 12px; }
+        .meta-label { font-size: 10px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; margin-bottom: 4px; }
+        .meta-value { font-size: 13px; color: #e2e8f0; font-weight: 500; line-height: 1.4; }
+        .meta-value.good { color: #4ade80; }
+        .meta-value.warn { color: #f59e0b; }
+        #modal-actions { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+        #compass-section { margin-top: 14px; padding-top: 14px; border-top: 1px solid #1e2235; display: flex; align-items: center; gap: 16px; }
+        #compass-canvas { cursor: crosshair; border-radius: 50%; display: block; }
+        #compass-info { flex: 1; }
+        #compass-deg { font-size: 22px; font-weight: 700; color: #f1f5f9; line-height: 1; margin-bottom: 4px; }
+        #compass-card { font-size: 12px; color: #64748b; margin-bottom: 10px; }
+        .compass-hint { font-size: 11px; color: #374151; margin-bottom: 8px; }
+        .compass-clear-btn { padding: 5px 12px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 6px; color: #94a3b8; font-size: 11px; cursor: pointer; }
+        .compass-clear-btn:hover { background: #2d1515; color: #f87171; border-color: #7f1d1d; }
+        .modal-act-btn { padding: 7px 14px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid #2a2f45; background: #1e2235; color: #94a3b8; transition: all 0.15s; }
+        .modal-act-btn:hover { background: #252a3d; color: #e2e8f0; }
+        .modal-act-btn.danger { border-color: #7f1d1d; color: #f87171; }
+        .modal-act-btn.danger:hover { background: #2d1515; }
+
+        #publish-status { background: #0f1117; border: 1px solid #1e2235; border-radius: 10px; padding: 16px; text-align: center; min-height: 80px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; }
+        #publish-status-icon { font-size: 28px; }
+        #publish-status-msg { font-size: 13px; color: #94a3b8; }
+        #publish-url-row { display: flex; gap: 6px; align-items: center; }
+        #publish-url-box { flex: 1; padding: 8px 11px; background: #0a0c12; border: 1px solid #2a2f45; border-radius: 7px; color: #60a5fa; font-size: 12px; font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .copy-btn { padding: 8px 12px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 7px; color: #94a3b8; font-size: 12px; cursor: pointer; white-space: nowrap; transition: all 0.15s; }
+        .copy-btn:hover { background: #252a3d; color: #e2e8f0; }
+        .copy-btn.copied { background: #052e16; border-color: #059669; color: #4ade80; }
+        .progress-bar { width: 100%; height: 4px; background: #1e2235; border-radius: 2px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #3b82f6; border-radius: 2px; transition: width 0.4s ease; }
+        #publish-history { margin-top: 12px; }
+        #publish-history h4 { font-size: 11px; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+        .pub-history-item { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; background: #0f1117; border: 1px solid #1e2235; border-radius: 7px; margin-bottom: 5px; }
+        .pub-history-name { font-size: 12px; font-weight: 600; color: #e2e8f0; }
+        .pub-history-url { font-size: 11px; color: #60a5fa; font-family: monospace; }
+        .pub-history-actions { display: flex; gap: 4px; }
+
+
+        #find-banner { position: fixed; top: 54px; left: 50%; transform: translateX(-50%); background: #f59e0b; color: #1a0a00; padding: 7px 18px; border-radius: 20px; font-size: 13px; font-weight: 700; z-index: 5000; display: none; pointer-events: none; white-space: nowrap; box-shadow: 0 2px 12px rgba(0,0,0,0.4); }
+        #find-banner.show { display: block; }
+        #map.find-mode { cursor: crosshair !important; }
+        #map.find-mode .leaflet-interactive { cursor: crosshair !important; }
+        #toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%) translateY(10px); background: #1e2235; border: 1px solid #2a2f45; color: #e2e8f0; padding: 9px 18px; border-radius: 8px; font-size: 13px; z-index: 30000; opacity: 0; transition: opacity 0.25s, transform 0.25s; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,0.5); white-space: nowrap; max-width: 90vw; text-overflow: ellipsis; overflow: hidden; }
+        #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+        .leaflet-container { background: #0a0c12; }
+        .leaflet-control-zoom { border: none !important; box-shadow: none !important; }
+        .leaflet-control-zoom a { background: #13161f !important; color: #94a3b8 !important; border-color: #1e2235 !important; box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important; }
+        .leaflet-control-zoom a:hover { background: #1a1e2e !important; color: #e2e8f0 !important; }
+        .leaflet-control-attribution { background: rgba(19,22,31,0.75) !important; color: #374151 !important; font-size: 10px !important; }
+        .leaflet-control-attribution a { color: #4b5563 !important; }
+        .leaflet-popup-content-wrapper { background: #13161f; border: 1px solid #1e2235; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); color: #e2e8f0; }
+        .leaflet-popup-tip { background: #13161f; }
+
+        /* ── Mobile layout ── */
+        #sheet-handle { display: none; }
+        #mobile-fabs  { display: none; }
+
+        /* Mobile share FAB */
+        #share-fab {
+            display: none;
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 900;
+            background: #059669;
+            border: none;
+            border-radius: 22px;
+            padding: 9px 16px;
+            color: white;
+            font-size: 13px;
+            font-weight: 700;
+            box-shadow: 0 3px 14px rgba(0,0,0,0.5);
+            cursor: pointer;
+            white-space: nowrap;
+        }
+        #share-fab:active { opacity: 0.85; transform: scale(0.97); }
+
+        @media (max-width: 700px) {
+            /* Header — compact */
+            #header { padding: 8px 12px; gap: 6px; }
+            #header h1 { font-size: 14px; }
+            #header-right .hbtn { display: none !important; }
+            #share-fab { display: block; }
+
+            /* App — map fills everything */
+            #app { display: block; height: 100%; }
+            #map-container { position: absolute; inset: 0; }
+
+            /* Sidebar → bottom sheet */
+            #sidebar {
+                display: flex;
+                flex-direction: column;
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                width: 100%;
+                height: auto;
+                max-height: 72vh;
+                border-right: none;
+                border-top: none;
+                border-radius: 18px 18px 0 0;
+                z-index: 800;
+                transform: translateY(calc(100% - 58px));
+                transition: transform 0.35s cubic-bezier(0.32,0.72,0,1);
+                box-shadow: 0 -4px 32px rgba(0,0,0,0.5);
+                overflow: hidden;
+            }
+            #sidebar.sheet-open { transform: translateY(0); }
+
+            /* Sheet drag handle */
+            #sheet-handle {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                padding: 8px 16px 10px;
+                cursor: pointer;
+                flex-shrink: 0;
+                border-bottom: 1px solid #1e2235;
+                gap: 6px;
+                user-select: none;
+            }
+            #sheet-bar {
+                width: 36px; height: 4px;
+                background: #2a2f45;
+                border-radius: 2px;
+            }
+            #sheet-handle-row {
+                width: 100%;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                font-size: 13px;
+                font-weight: 600;
+                color: #94a3b8;
+            }
+            #sheet-handle-row .sb-count {
+                background: #1e2235;
+                color: #64748b;
+                padding: 1px 7px;
+                border-radius: 8px;
+                font-size: 11px;
+            }
+            #sheet-handle-row .sheet-chevron {
+                margin-left: auto;
+                color: #475569;
+                font-size: 11px;
+                transition: transform 0.3s;
+            }
+            #sidebar.sheet-open #sheet-handle-row .sheet-chevron { transform: rotate(180deg); }
+
+            /* Sidebar sections inside sheet */
+            #sidebar-upload { padding: 10px; border-bottom: 1px solid #1e2235; }
+            #sidebar-footer { display: none; }
+            #mobile-session-row { display: flex; gap: 6px; padding: 8px 10px; border-top: 1px solid #1e2235; flex-shrink: 0; }
+            #photo-list { max-height: 180px; overflow-y: auto; }
+            #parcel-list { max-height: 120px; }
+
+            /* Map controls — shift up so not hidden behind sheet */
+            #map-controls { bottom: 72px; right: 72px; }
+
+
+            /* Mobile FABs — floating on map */
+            #mobile-fabs {
+                display: flex !important;
+                flex-direction: column;
+                gap: 10px;
+                position: fixed;
+                bottom: 74px;
+                right: 14px;
+                z-index: 790;
+            }
+            .mob-fab {
+                width: 48px; height: 48px;
+                border-radius: 50%;
+                border: none;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                box-shadow: 0 3px 14px rgba(0,0,0,0.5);
+                cursor: pointer;
+                transition: transform 0.15s, opacity 0.15s;
+            }
+            .mob-fab:active { transform: scale(0.93); opacity: 0.85; }
+            .mob-fab.blue   { background: #1d4ed8; }
+            .mob-fab.dark   { background: #0e3a8a; }
+            .mob-fab.amber  { background: #78350f; border: 1px solid #92400e; }
+            .mob-fab.amber.active { background: #f59e0b; border-color: #f59e0b; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="header">
+    <div id="header-logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-linecap="round">
+            <rect x="2" y="2" width="20" height="20" rx="3" stroke="#f59e0b" stroke-width="2"/>
+            <rect x="6" y="6" width="12" height="12" rx="2" stroke="#f59e0b" stroke-width="1.3" opacity="0.55"/>
+            <circle cx="15.5" cy="8.5" r="2.8" fill="#f59e0b"/>
+            <circle cx="15.5" cy="8.5" r="1.3" fill="#13161f"/>
+            <line x1="15.5" y1="8.5" x2="20" y2="4" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round"/>
+        </svg>
+    </div>
+    <h1>LandSight</h1>
+    <div id="header-right">
+        <button class="hbtn" onclick="fitAll()">⊡ Fit All</button>
+        <button class="hbtn" id="labels-btn" onclick="toggleLabels()">Labels: On</button>
+        <button class="hbtn" onclick="loadSession()" title="Load saved session">📂 Load</button>
+        <button class="hbtn" onclick="saveSession()" title="Save session to file">💾 Save</button>
+        <button class="hbtn publish" id="publish-btn" onclick="openPublishModal()">📤 Share Map</button>
+        <button class="hbtn icon-btn" onclick="openSettingsModal()" title="Settings">⚙️</button>
+    </div>
+    <input type="file" id="session-input" accept=".lsmap">
+</div>
+
+<!-- Mobile share FAB — always visible top-right on mobile -->
+<button id="share-fab" onclick="openPublishModal()">📤 Share Map</button>
+
+
+<div id="app">
+    <div id="sidebar">
+        <div id="sheet-handle" onclick="toggleSheet()">
+            <div id="sheet-bar"></div>
+            <div id="sheet-handle-row">
+                <span>Photos</span><span class="sb-count" id="m-photo-count">0</span>
+                <span style="margin-left:10px">Parcels</span><span class="sb-count" id="m-parcel-count">0</span>
+                <span class="sheet-chevron">▲</span>
+            </div>
+        </div>
+        <div id="parcel-search-box">
+            <div id="parcel-search-row">
+                <input id="parcel-search-input" type="text" placeholder="Search address or APN…" autocomplete="off" autocorrect="off" spellcheck="false"
+                    oninput="onSearchInput()"
+                    onkeydown="onSearchKeydown(event)">
+                <button id="parcel-search-btn" onclick="searchParcel()" title="Search">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                </button>
+            </div>
+            <div id="search-suggestions"></div>
+        </div>
+        <div id="sidebar-upload">
+            <button class="sb-btn blue" onclick="document.getElementById('photo-input').click()">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                Add Photos
+            </button>
+            <button class="sb-btn blue" id="camera-btn" onclick="document.getElementById('camera-input').click()" style="background:#0e3a8a;border:1px solid #1d4ed8">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                Take Photo
+            </button>
+            <div style="display:flex;gap:6px">
+                <button class="sb-btn amber" style="flex:1" onclick="document.getElementById('parcel-input').click()">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+                    Load Parcel
+                </button>
+                <button class="sb-btn amber" id="find-parcel-btn" style="flex:0 0 auto;padding:6px 8px;min-width:0;width:32px;height:32px" onclick="toggleFindParcel()" title="Tap map to load parcel">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+                </button>
+            </div>
+            <input type="file" id="photo-input"  accept="image/*" multiple>
+            <input type="file" id="camera-input" accept="image/*" capture="environment">
+            <input type="file" id="parcel-input" accept=".geojson,.json,.kml,.kmz">
+        </div>
+        <div class="sb-section-hdr">Photos <span class="sb-count" id="photo-count">0</span></div>
+        <div id="photo-list"></div>
+        <div id="parcel-section">
+            <div class="sb-section-hdr">Parcels <span class="sb-count" id="parcel-count">0</span></div>
+            <div id="parcel-list"></div>
+        </div>
+        <div id="county-section">
+            <div class="sb-section-hdr" onclick="toggleCounties()">
+                County GIS
+                <span id="county-chevron" style="font-size:9px;color:#374151">▲</span>
+            </div>
+            <div id="county-list">
+                <div class="county-item">
+                    <div class="county-name">Placer County</div>
+                    <div class="county-links">
+                        <a class="county-link data" href="https://gis-placercounty.opendata.arcgis.com/datasets/0cd6fe392d6044519a68fa9c2737f166_4/explore?location=39.015624%2C-120.743882%2C9" target="_blank" rel="noopener">GIS Download</a>
+                    </div>
+                </div>
+                <div class="county-item">
+                    <div class="county-name">Sacramento County</div>
+                    <div class="county-links">
+                        <a class="county-link data" href="https://data-sacramentocounty.opendata.arcgis.com/datasets/sacramentocounty::parcels/explore" target="_blank" rel="noopener">GIS Download</a>
+                    </div>
+                </div>
+                <div class="county-item">
+                    <div class="county-name">El Dorado County</div>
+                    <div class="county-links">
+                        <a class="county-link data" href="https://gis-eldoradocounty.hub.arcgis.com/datasets/cb2ab7664c8643e1b45ba7f006e86d2a_0/explore?location=38.786435%2C-120.511269%2C10" target="_blank" rel="noopener">GIS Download</a>
+                    </div>
+                </div>
+                <div class="county-item">
+                    <div class="county-name">Nevada County</div>
+                    <div class="county-links">
+                        <a class="county-link data" href="https://maps-nevcounty.opendata.arcgis.com/datasets/nevcounty::parcel-information/explore" target="_blank" rel="noopener">GIS Download</a>
+                    </div>
+                </div>
+                <div class="county-item">
+                    <div class="county-name">Yolo County</div>
+                    <div class="county-links">
+                        <a class="county-link data" href="https://open-data-yolo.hub.arcgis.com/datasets/867d6a5e7a2c44c7a4f6e996b2d89561_0/explore" target="_blank" rel="noopener">GIS Download</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div id="sidebar-footer">Drag photos or parcel files onto the map</div>
+        <div id="mobile-session-row">
+            <button class="sb-btn" style="flex:1;background:#1e2235;color:#94a3b8;border:1px solid #2a2f45" onclick="loadSession()">📂 Load Session</button>
+            <button class="sb-btn" style="flex:1;background:#1e2235;color:#94a3b8;border:1px solid #2a2f45" onclick="saveSession()">💾 Save Session</button>
+        </div>
+    </div>
+
+    <div id="map-container">
+        <div id="map"></div>
+        <!-- Mobile FABs -->
+        <div id="mobile-fabs">
+            <button class="mob-fab amber" id="find-parcel-fab" onclick="toggleFindParcel()" title="Tap map to load parcel">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg>
+            </button>
+            <button class="mob-fab dark" onclick="document.getElementById('camera-input').click()" title="Take Photo">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </button>
+            <button class="mob-fab blue" onclick="document.getElementById('photo-input').click()" title="Add Photos">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            </button>
+        </div>
+        <div id="find-banner">📍 Tap your property to load its parcel</div>
+        <div id="drop-overlay"><div id="drop-inner"><p>Drop files here</p><span>Photos (JPG/PNG) or Parcel (GeoJSON/KML/KMZ)</span></div></div>
+        <div id="empty-state">
+            <div>🛰️</div>
+            <h3>No photos yet</h3>
+            <p>Add photos with GPS, load a parcel boundary, then publish a shareable link for clients.</p>
+        </div>
+        <div id="map-controls">
+            <div class="mc-btn" onclick="fitAll()" title="Fit all (F)">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Photo modal -->
+<div id="photo-modal" class="modal-overlay" onclick="if(event.target===this)closePhotoModal()">
+    <div class="modal-box">
+        <button class="modal-close-x" style="position:absolute;top:14px;right:14px;z-index:1" onclick="closePhotoModal()">✕</button>
+        <div id="modal-img-wrap"><img id="modal-img" src="" alt=""></div>
+        <div id="modal-meta-wrap">
+            <div id="modal-filename"></div>
+            <div id="modal-meta"></div>
+            <div id="compass-section">
+                <canvas id="compass-canvas" width="110" height="110"></canvas>
+                <div id="compass-info">
+                    <div id="compass-deg">—</div>
+                    <div id="compass-card">No orientation set</div>
+                    <div class="compass-hint">Click or drag compass to set direction</div>
+                    <button class="compass-clear-btn" onclick="clearManualHeading()">Clear orientation</button>
+                </div>
+            </div>
+            <div id="modal-actions">
+                <button class="modal-act-btn" onclick="goToPhoto()">📍 Go to on map</button>
+                <button class="modal-act-btn danger" onclick="removePhoto()">✕ Remove</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings modal -->
+<div id="settings-modal" class="modal-overlay" onclick="if(event.target===this)closeModal('settings-modal')">
+    <div class="modal-box" style="max-width:440px">
+        <div class="modal-header">
+            <h2>⚙️ Settings</h2>
+            <button class="modal-close-x" onclick="closeModal('settings-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <!-- GitHub setup -->
+            <div class="form-group">
+                <label class="form-label" style="display:flex;align-items:center;justify-content:space-between">
+                    <span>GitHub Token <span style="font-size:10px;font-weight:400;color:#475569">(for sharing maps as links)</span></span>
+                    <span id="token-badge" style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:600"></span>
+                </label>
+                <div id="token-guide" style="background:#0a0c12;border:1px solid #1e2235;border-radius:10px;padding:14px;margin-bottom:10px">
+                    <div style="font-size:12px;color:#94a3b8;line-height:1.7;margin-bottom:12px">
+                        GitHub is a <b style="color:#f1f5f9">free</b> service. Once set up, every map gets a real link your client can tap on any device.
+                    </div>
+                    <div style="font-size:12px;color:#64748b;margin-bottom:10px;display:flex;flex-direction:column;gap:7px">
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="background:#1d4ed8;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px">1</span>
+                            <span>Go to <a href="https://github.com/signup" target="_blank" style="color:#60a5fa">github.com/signup</a> and create a free account</span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="background:#1d4ed8;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px">2</span>
+                            <span>Go to <a href="https://github.com/settings/tokens/new" target="_blank" style="color:#60a5fa">github.com/settings/tokens/new</a> → choose <b>Tokens (classic)</b> → check the <b>repo</b> box → Generate</span>
+                        </div>
+                        <div style="display:flex;gap:8px;align-items:flex-start">
+                            <span style="background:#1d4ed8;color:white;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;margin-top:1px">3</span>
+                            <span>Copy the token and paste it below</span>
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex;gap:6px">
+                    <input type="password" class="form-input" id="netlify-token-input" placeholder="Paste token here…" style="flex:1">
+                    <button class="btn btn-primary" onclick="saveNetlifyToken()" style="white-space:nowrap">Save</button>
+                </div>
+                <div id="token-test-row" style="display:none;margin-top:8px">
+                    <button class="btn btn-ghost" onclick="testNetlifyToken()" style="font-size:11px;padding:5px 10px">Test token</button>
+                    <button class="btn btn-ghost" onclick="removeNetlifyToken()" style="font-size:11px;padding:5px 10px;color:#f87171">Remove</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn btn-primary" onclick="closeModal('settings-modal')">Done</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Publish modal -->
+<div id="publish-modal" class="modal-overlay" onclick="if(event.target===this&&!isPublishing)closeModal('publish-modal')">
+    <div class="modal-box" style="max-width:440px">
+        <div class="modal-header">
+            <h2>📤 Share Map</h2>
+            <button class="modal-close-x" id="publish-modal-close" onclick="closeModal('publish-modal')">✕</button>
+        </div>
+        <div class="modal-body">
+            <div id="publish-name-group">
+                <div class="form-group">
+                    <label class="form-label">Property Name</label>
+                    <input type="text" class="form-input" id="publish-name-input" placeholder="e.g. Smith Ranch">
+                    <div class="form-hint">Shown to your client on the map.</div>
+                </div>
+                <!-- No-token warning -->
+                <div id="publish-no-token-warn" style="display:none;background:#1f0a0a;border:1px solid #7f1d1d;border-radius:10px;padding:12px;margin-top:4px">
+                    <div style="font-size:12px;color:#fca5a5;line-height:1.6">
+                        ⚠️ No Netlify token set — map will download as a file instead of a shareable link.<br>
+                        <span style="color:#f87171;cursor:pointer;text-decoration:underline" onclick="closeModal('publish-modal');openSettingsModal()">Set up Netlify in Settings →</span>
+                    </div>
+                </div>
+            </div>
+            <div id="publish-status" style="display:none;flex-direction:column;align-items:center;gap:10px;padding:16px 0">
+                <div id="publish-status-icon" style="font-size:28px">⏳</div>
+                <div id="publish-status-msg" style="font-size:13px;color:#94a3b8"></div>
+                <div class="progress-bar" style="width:100%"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+            </div>
+            <div id="publish-success" style="display:none;text-align:center;padding:8px 0 4px">
+                <div style="font-size:32px;margin-bottom:8px">✅</div>
+                <div style="font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:6px" id="publish-success-title">Map ready!</div>
+                <div id="publish-url-wrap" style="display:none;margin:10px 0 4px">
+                    <div style="display:flex;gap:6px;align-items:center">
+                        <div id="publish-url-box" style="flex:1;padding:9px 11px;background:#0a0c12;border:1px solid #2a2f45;border-radius:8px;color:#60a5fa;font-size:12px;font-family:monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer" onclick="copyPublishedUrl()"></div>
+                        <button class="copy-btn" id="copy-url-btn" onclick="copyPublishedUrl()">Copy</button>
+                    </div>
+                    <button class="btn btn-primary" style="width:100%;margin-top:8px" onclick="sharePublishedUrl()">📨 Share Link</button>
+                </div>
+                <div id="publish-success-hint" style="font-size:12px;color:#64748b;line-height:1.6;margin-top:8px"></div>
+            </div>
+        </div>
+        <div class="modal-footer" id="publish-footer">
+            <button class="btn btn-ghost" onclick="closeModal('publish-modal')">Cancel</button>
+            <button class="btn btn-primary" id="do-publish-btn" onclick="startPublish()">📤 Share Map</button>
+        </div>
+    </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+const map = L.map('map', { center: [39.5, -98.35], zoom: 4 });
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Imagery © Esri', maxZoom: 21, maxNativeZoom: 19 }).addTo(map);
+const labelLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
+    { attribution: '© CartoDB', maxZoom: 21, opacity: 0.8 }).addTo(map);
+let labelsOn = true;
+function toggleSheet() {
+    document.getElementById('sidebar').classList.toggle('sheet-open');
+}
+
+function toggleLabels() {
+    labelsOn = !labelsOn;
+    labelsOn ? labelLayer.addTo(map) : map.removeLayer(labelLayer);
+    document.getElementById('labels-btn').textContent = `Labels: ${labelsOn ? 'On' : 'Off'}`;
+}
+
+let photos = [], parcels = [], leafletMarkers = {};
+let activeSidebarId = null, activeModalId = null, isPublishing = false;
+const PARCEL_COLORS = ['#f59e0b','#10b981','#8b5cf6','#ef4444','#06b6d4','#f97316','#ec4899'];
+let parcelColorIdx = 0;
+
+document.getElementById('photo-input').addEventListener('change', async (e) => { await processPhotoFiles(Array.from(e.target.files)); e.target.value = ''; });
+document.getElementById('camera-input').addEventListener('change', async (e) => {
+    const files = Array.from(e.target.files);
+    if (!files.length) { e.target.value = ''; return; }
+    showToast('Getting your location…');
+    // Get device location first, then process photos
+    let deviceLat = null, deviceLng = null;
+    try {
+        const pos = await new Promise((res, rej) =>
+            navigator.geolocation.getCurrentPosition(res, rej, { enableHighAccuracy: true, timeout: 8000 }));
+        deviceLat = pos.coords.latitude;
+        deviceLng = pos.coords.longitude;
+    } catch(err) { console.warn('Geolocation unavailable:', err.message); }
+    await processPhotoFiles(files, deviceLat, deviceLng);
+    e.target.value = '';
+});
+
+async function processPhotoFiles(files, fallbackLat=null, fallbackLng=null) {
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    if (!imgs.length) return;
+    showToast(`Reading ${imgs.length} photo${imgs.length > 1 ? 's' : ''}…`);
+    const results = await Promise.all(imgs.map(f => processOnePhoto(f, fallbackLat, fallbackLng)));
+    renderSidebar(); updateEmptyState();
+    const placed = results.filter(p => p.hasGps).length;
+    showToast(`Added ${results.length} photo${results.length > 1 ? 's' : ''}${placed ? ` · ${placed} placed on map` : ' · no GPS found'}`);
+    const allPlaced = photos.filter(x => x.hasGps);
+    if (allPlaced.length === 1) { map.flyTo([allPlaced[0].lat, allPlaced[0].lng], 18, { duration: 1.2 }); }
+    else if (allPlaced.length > 1) setTimeout(fitAll, 400);
+}
+
+async function processOnePhoto(file, fallbackLat=null, fallbackLng=null) {
+    const objUrl = URL.createObjectURL(file);
+    let exif = {};
+    try { exif = await exifr.parse(file, { gps:true, exif:true, tiff:true, xmp:true, iptc:false, jfif:false, ihdr:false }) || {}; }
+    catch(e) { console.warn('EXIF:', file.name, e); }
+    // DJI fallback: some drones store GPS only in XMP, not standard EXIF GPS IFD
+    const parseDjiCoord = v => { if (v == null) return null; if (typeof v === 'number') return v; const n = parseFloat(v); return isNaN(n) ? null : n; };
+    const lat = exif.latitude ?? parseDjiCoord(exif['drone-dji:GpsLatitude']) ?? parseDjiCoord(exif.GpsLatitude) ?? fallbackLat;
+    const lng = exif.longitude ?? parseDjiCoord(exif['drone-dji:GpsLongitude']) ?? parseDjiCoord(exif.GpsLongitude) ?? fallbackLng;
+    if (!lat && !lng) console.warn('LandSight GPS miss — full EXIF dump:', JSON.stringify(exif));
+    let heading = exif.GPSImgDirection ?? exif['drone-dji:GimbalYawDegree'] ?? exif['drone-dji:FlightYawDegree'] ?? null;
+    if (heading !== null) heading = ((+heading % 360) + 360) % 360;
+    const photo = {
+        id: uid('p'), file, name: file.name, size: file.size, objUrl,
+        lat, lng, heading,
+        altitude: exif.GPSAltitude ?? null,
+        relAlt: exif['drone-dji:RelativeAltitude'] ?? exif.RelativeAltitude ?? null,
+        datetime: exif.DateTimeOriginal ?? exif.CreateDate ?? null,
+        make: exif.Make ?? '', model: exif.Model ?? '',
+        hasGps: lat !== null && lng !== null
+    };
+    photos.push(photo);
+    if (photo.hasGps) {
+        // Spread stacked photos using original GPS coords (not offset coords)
+        const STEP = 0.00010;
+        const origLat = photo.lat, origLng = photo.lng;
+        photo.origLat = origLat; photo.origLng = origLng;
+        // Count how many photos share the same original GPS spot
+        const stack = photos.filter(x => x.id !== photo.id && x.hasGps &&
+            Math.abs((x.origLat ?? x.lat) - origLat) < 0.00004 &&
+            Math.abs((x.origLng ?? x.lng) - origLng) < 0.00004);
+        if (stack.length > 0) {
+            const n = stack.length;
+            const angle = (n * 137.508) * Math.PI / 180; // golden angle
+            const radius = STEP * (1 + Math.floor(n / 8));
+            photo.lat = origLat + radius * Math.cos(angle);
+            photo.lng = origLng + radius * Math.sin(angle);
+        }
+        addPhotoMarker(photo);
+    }
+    return photo;
+}
+
+function addPhotoMarker(photo) {
+    const marker = L.marker([photo.lat, photo.lng], { icon: buildPhotoIcon(photo), draggable: true, title: photo.name }).addTo(map);
+    marker.on('click', () => openPhotoModal(photo.id));
+    marker.on('dragend', e => { const ll = e.target.getLatLng(); const p = photos.find(x => x.id === photo.id); if (p) { p.lat = ll.lat; p.lng = ll.lng; } });
+    leafletMarkers[photo.id] = marker;
+}
+
+function buildPhotoIcon(photo) {
+    const SZ = 56, TH = 40;
+    let cone = '';
+    if (photo.heading !== null) {
+        const fov = 65, len = 46, r = (fov/2)*Math.PI/180;
+        const x1 = (-Math.sin(r)*len).toFixed(1), y1 = (-Math.cos(r)*len).toFixed(1);
+        const x2 = (Math.sin(r)*len).toFixed(1), gid = 'cg'+photo.id.slice(-5);
+        cone = `<svg style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate(${photo.heading}deg);overflow:visible;pointer-events:none;z-index:1" width="${SZ}" height="${SZ}" viewBox="-${SZ/2} -${SZ/2} ${SZ} ${SZ}"><defs><radialGradient id="${gid}" cx="50%" cy="100%" r="100%"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.75"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.05"/></radialGradient></defs><polygon points="0,0 ${x1},${y1} ${x2},${y1}" fill="url(#${gid})" stroke="rgba(96,165,250,0.9)" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+    }
+    const border = photo.heading !== null ? '#ffffff' : '#f59e0b';
+    return L.divIcon({ className: '', html: `<div style="position:relative;width:${SZ}px;height:${SZ}px;display:flex;align-items:center;justify-content:center">${cone}<div style="width:${TH}px;height:${TH}px;border-radius:50%;border:3px solid ${border};overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.7);position:relative;z-index:2;flex-shrink:0"><img src="${photo.objUrl}" style="width:100%;height:100%;object-fit:cover;display:block" draggable="false"/></div></div>`, iconSize:[SZ,SZ], iconAnchor:[SZ/2,SZ/2] });
+}
+
+document.getElementById('parcel-input').addEventListener('change', async (e) => { if (e.target.files[0]) await loadParcelFile(e.target.files[0]); e.target.value = ''; });
+
+async function loadParcelFile(file) {
+    showToast(`Loading ${file.name}…`);
+    try {
+        let kmlText = null;
+        const nameLow = file.name.toLowerCase();
+        if (nameLow.endsWith('.kmz')) {
+            // KMZ is a zip — extract the inner doc.kml
+            const zip = await JSZip.loadAsync(file);
+            const kmlFile = Object.values(zip.files).find(f => f.name.endsWith('.kml'));
+            if (!kmlFile) { showToast('No KML found inside KMZ'); return; }
+            kmlText = await kmlFile.async('string');
+        } else if (nameLow.endsWith('.kml')) {
+            kmlText = await file.text();
+        }
+        const text = kmlText ?? await file.text();
+        let geojson = kmlText ? kmlToGeoJSON(new DOMParser().parseFromString(kmlText, 'text/xml')) : JSON.parse(text);
+        if (!geojson) { showToast('Could not parse file'); return; }
+        if (Array.isArray(geojson.features) && geojson.features.length === 0) { showToast('No features found in file — check format'); return; }
+        if (geojson.type === 'Feature') geojson = { type:'FeatureCollection', features:[geojson] };
+        if (geojson.type !== 'FeatureCollection') { showToast('Unrecognized format'); return; }
+        const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
+        const layer = L.geoJSON(geojson, {
+            style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.10 }),
+            onEachFeature: (feature, lyr) => {
+                const props = feature.properties || {};
+                const rows = Object.entries(props).filter(([k,v]) => v && typeof v !== 'object' && k.toLowerCase() !== 'styleurl').slice(0,8)
+                    .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
+                if (rows) lyr.bindPopup(`<div style="min-width:160px">${rows}</div>`, { maxWidth: 260 });
+                lyr.on('click', () => { lyr.setStyle({ fillOpacity:0.25, weight:3.5 }); setTimeout(() => lyr.setStyle({ fillOpacity:0.10, weight:2.5 }), 600); });
+            }
+        }).addTo(map);
+        parcels.push({ id: uid('par'), name: file.name, color, layer, geojson, visible: true, featureCount: geojson.features.length });
+        try { map.fitBounds(layer.getBounds(), { padding:[40,40], maxZoom:19 }); } catch(e) {}
+        renderSidebar(); updateEmptyState();
+        showToast(`Loaded ${file.name} · ${geojson.features.length} feature${geojson.features.length !== 1 ? 's' : ''}`);
+    } catch(err) { console.error(err); showToast('Failed: ' + err.message); }
+}
+
+function kmlToGeoJSON(kmlDoc) {
+    const features = [];
+    // Use getElementsByTagName (namespace-safe) instead of querySelectorAll
+    Array.from(kmlDoc.getElementsByTagName('Placemark')).forEach(pm => {
+        const name = (pm.getElementsByTagName('name')[0]?.textContent ?? '').trim();
+        const desc = (pm.getElementsByTagName('description')[0]?.textContent ?? '').trim();
+        const process = el => {
+            const polys = el.getElementsByTagName('Polygon');
+            if (polys.length) {
+                Array.from(polys).forEach(poly => {
+                    const coordEl = poly.getElementsByTagName('coordinates')[0];
+                    if (coordEl) { const c = parseKMLCoords(coordEl.textContent); if (c.length>=3) features.push({type:'Feature',properties:{name,description:desc},geometry:{type:'Polygon',coordinates:[c]}}); }
+                });
+                return;
+            }
+            const lines = el.getElementsByTagName('LineString');
+            if (lines.length) {
+                const coordEl = lines[0].getElementsByTagName('coordinates')[0];
+                if (coordEl) { const c = parseKMLCoords(coordEl.textContent); if (c.length>=2) features.push({type:'Feature',properties:{name,description:desc},geometry:{type:'LineString',coordinates:c}}); }
+                return;
+            }
+            const pts = el.getElementsByTagName('Point');
+            if (pts.length) {
+                const coordEl = pts[0].getElementsByTagName('coordinates')[0];
+                if (coordEl) { const c = parseKMLCoords(coordEl.textContent); if (c.length) features.push({type:'Feature',properties:{name,description:desc},geometry:{type:'Point',coordinates:c[0]}}); }
+            }
+        };
+        const multi = pm.getElementsByTagName('MultiGeometry');
+        multi.length ? Array.from(multi[0].children).forEach(process) : process(pm);
+    });
+    return { type:'FeatureCollection', features };
+}
+function parseKMLCoords(str) { return str.trim().split(/\s+/).map(c => c.split(',').map(Number)).filter(c => c.length>=2 && !isNaN(c[0]) && !isNaN(c[1])).map(c => [c[0],c[1]]); }
+function toggleParcelVisibility(id) { const p = parcels.find(x => x.id===id); if (!p) return; p.visible = !p.visible; p.visible ? p.layer.addTo(map) : map.removeLayer(p.layer); renderSidebar(); }
+function fitParcel(id) { const p = parcels.find(x => x.id===id); if (!p) return; try { map.fitBounds(p.layer.getBounds(), { padding:[40,40], maxZoom:19 }); } catch(e) {} }
+function removeParcel(id) { const idx = parcels.findIndex(x => x.id===id); if (idx===-1) return; map.removeLayer(parcels[idx].layer); parcels.splice(idx,1); renderSidebar(); updateEmptyState(); showToast('Parcel removed'); }
+
+function renderSidebar() {
+    document.getElementById('photo-count').textContent = photos.length;
+    const mpc = document.getElementById('m-photo-count'); if (mpc) mpc.textContent = photos.length;
+    const mparc = document.getElementById('m-parcel-count'); if (mparc) mparc.textContent = parcels.length;
+    document.getElementById('photo-list').innerHTML = photos.length ? photos.map(p => `
+        <div class="photo-item ${activeSidebarId===p.id?'active':''}" onclick="sidebarPhoto('${p.id}')">
+            <img class="photo-thumb" src="${p.objUrl}" alt="${p.name}">
+            <div class="photo-info">
+                <div class="photo-name" title="${p.name}">${p.name}</div>
+                <div class="photo-badges">
+                    ${p.hasGps ? '<span class="badge b-gps">✓ GPS</span>' : '<span class="badge b-nogps">✗ No GPS</span>'}
+                    ${p.heading !== null ? `<span class="badge b-hdg">${Math.round(p.heading)}° ${deg2card(p.heading)}</span>` : ''}
+                </div>
+            </div>
+            <div class="pi-btn danger" onclick="event.stopPropagation();deletePhoto('${p.id}')" title="Remove photo" style="flex-shrink:0">✕</div>
+        </div>`).join('') : '<div style="padding:16px 12px;font-size:12px;color:#374151;text-align:center">No photos yet</div>';
+    document.getElementById('parcel-count').textContent = parcels.length;
+    document.getElementById('parcel-list').innerHTML = parcels.length ? parcels.map(p => `
+        <div class="parcel-item">
+            <div class="parcel-swatch" style="background:${p.color}"></div>
+            <div class="parcel-info">
+                <div class="parcel-name" title="${p.name}">${p.name}</div>
+                <div class="parcel-meta">${p.featureCount} feature${p.featureCount!==1?'s':''}</div>
+            </div>
+            <div class="parcel-actions">
+                <div class="pi-btn ${p.visible?'':'muted'}" onclick="toggleParcelVisibility('${p.id}')" title="${p.visible?'Hide':'Show'}">👁</div>
+                <div class="pi-btn" onclick="fitParcel('${p.id}')" title="Zoom to parcel">⊡</div>
+                <div class="pi-btn danger" onclick="removeParcel('${p.id}')" title="Remove">✕</div>
+            </div>
+        </div>`).join('') : '<div style="padding:10px 12px;font-size:11px;color:#374151;text-align:center">No parcels loaded</div>';
+}
+function sidebarPhoto(id) { activeSidebarId = id; renderSidebar(); const p = photos.find(x=>x.id===id); if (p?.hasGps) map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),18), { duration:0.7 }); }
+
+function openPhotoModal(id) {
+    const p = photos.find(x => x.id===id); if (!p) return;
+    activeModalId = id; activeSidebarId = id; renderSidebar();
+    document.getElementById('modal-img').src = p.objUrl;
+    document.getElementById('modal-filename').textContent = p.name;
+    let altTxt = 'Unknown';
+    if (p.relAlt !== null) altTxt = `${parseFloat(p.relAlt).toFixed(1)} m AGL`;
+    else if (p.altitude !== null) altTxt = `${Math.round(p.altitude)} m ASL`;
+    document.getElementById('modal-meta').innerHTML = [
+        { l:'GPS', v: p.hasGps ? `${p.lat.toFixed(6)}, ${p.lng.toFixed(6)}` : 'No GPS data', c: p.hasGps?'good':'warn' },
+        { l:'Heading', v: p.heading !== null ? `${Math.round(p.heading)}° ${deg2card(p.heading)}` : 'Not available', c: p.heading?'':'warn' },
+        { l:'Altitude', v: altTxt },
+        { l:'Captured', v: p.datetime ? new Date(p.datetime).toLocaleString() : 'Unknown' },
+        { l:'Camera', v: [p.make,p.model].filter(Boolean).join(' ')||'Unknown' },
+        { l:'File size', v: fmtBytes(p.size) },
+    ].map(m => `<div class="meta-card"><div class="meta-label">${m.l}</div><div class="meta-value ${m.c||''}">${m.v}</div></div>`).join('');
+    document.getElementById('photo-modal').classList.add('open');
+    setupCompass(p.heading);
+}
+function closePhotoModal() { document.getElementById('photo-modal').classList.remove('open'); activeModalId = null; }
+
+function drawCompass(heading) {
+    const canvas = document.getElementById('compass-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = 110, cx = 55, cy = 55, r = 50;
+    ctx.clearRect(0, 0, W, W);
+    // Background
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2);
+    ctx.fillStyle = '#0f1117'; ctx.fill();
+    ctx.strokeStyle = '#2a2f45'; ctx.lineWidth = 2; ctx.stroke();
+    // Tick marks
+    for (let i = 0; i < 36; i++) {
+        const a = (i*10 - 90) * Math.PI / 180;
+        const isMaj = i % 9 === 0, isMid = i % 3 === 0;
+        const inner = isMaj ? r-10 : isMid ? r-6 : r-3;
+        ctx.beginPath();
+        ctx.moveTo(cx + Math.cos(a)*inner, cy + Math.sin(a)*inner);
+        ctx.lineTo(cx + Math.cos(a)*(r-1), cy + Math.sin(a)*(r-1));
+        ctx.strokeStyle = isMaj ? '#475569' : '#1e2235';
+        ctx.lineWidth = isMaj ? 1.5 : 1; ctx.stroke();
+    }
+    // Cardinal labels
+    const cards = [['N','#f87171',-90],['E','#475569',0],['S','#475569',90],['W','#475569',180]];
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    cards.forEach(([lbl,col,deg]) => {
+        const a = deg * Math.PI / 180, d = r - 14;
+        ctx.fillStyle = col; ctx.font = `bold ${lbl==='N'?'11':'10'}px -apple-system,sans-serif`;
+        ctx.fillText(lbl, cx + Math.cos(a)*d, cy + Math.sin(a)*d);
+    });
+    // Cone + arrow if heading set
+    if (heading !== null) {
+        const a = (heading - 90) * Math.PI / 180;
+        const fov = 65 * Math.PI / 180, cLen = r - 14;
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.arc(cx, cy, cLen, a - fov/2, a + fov/2);
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(59,130,246,0.25)'; ctx.fill();
+        ctx.strokeStyle = 'rgba(96,165,250,0.7)'; ctx.lineWidth = 1.5; ctx.stroke();
+        // Arrow
+        ctx.beginPath(); ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a)*cLen, cy + Math.sin(a)*cLen);
+        ctx.strokeStyle = '#60a5fa'; ctx.lineWidth = 2;
+        ctx.lineCap = 'round'; ctx.stroke();
+        // Center dot
+        ctx.beginPath(); ctx.arc(cx, cy, 3, 0, Math.PI*2);
+        ctx.fillStyle = '#60a5fa'; ctx.fill();
+    }
+}
+
+function compassHeadingFromEvent(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.left + rect.width/2, cy = rect.top + rect.height/2;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const dx = clientX - cx, dy = clientY - cy;
+    let deg = Math.atan2(dx, -dy) * 180 / Math.PI;
+    return ((deg % 360) + 360) % 360;
+}
+
+function applyCompassHeading(heading) {
+    const p = photos.find(x => x.id === activeModalId); if (!p) return;
+    p.heading = heading;
+    drawCompass(heading);
+    document.getElementById('compass-deg').textContent = Math.round(heading) + '°';
+    document.getElementById('compass-card').textContent = deg2card(heading);
+    refreshMarker(p.id); renderSidebar();
+}
+
+function clearManualHeading() {
+    const p = photos.find(x => x.id === activeModalId); if (!p) return;
+    p.heading = null;
+    drawCompass(null);
+    document.getElementById('compass-deg').textContent = '—';
+    document.getElementById('compass-card').textContent = 'No orientation set';
+    refreshMarker(p.id); renderSidebar();
+}
+
+function refreshMarker(id) {
+    const p = photos.find(x => x.id===id); if (!p || !p.hasGps) return;
+    if (leafletMarkers[id]) leafletMarkers[id].setIcon(buildPhotoIcon(p));
+}
+
+// Compass drag/click wiring (set up after modal opens)
+let compassDragging = false;
+function setupCompass(heading) {
+    drawCompass(heading);
+    const hDeg = heading !== null ? Math.round(heading) + '°' : '—';
+    const hCard = heading !== null ? deg2card(heading) : 'No orientation set';
+    document.getElementById('compass-deg').textContent = hDeg;
+    document.getElementById('compass-card').textContent = hCard;
+    const canvas = document.getElementById('compass-canvas');
+    canvas.onmousedown = canvas.ontouchstart = e => { compassDragging = true; e.preventDefault(); applyCompassHeading(compassHeadingFromEvent(e, canvas)); };
+    canvas.onmousemove = canvas.ontouchmove = e => { if (!compassDragging) return; e.preventDefault(); applyCompassHeading(compassHeadingFromEvent(e, canvas)); };
+    document.onmouseup = document.ontouchend = () => { compassDragging = false; };
+}
+function goToPhoto() { const p = photos.find(x=>x.id===activeModalId); if (p?.hasGps) { closePhotoModal(); map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),18), { duration:0.7 }); } else showToast('No GPS for this photo'); }
+function deletePhoto(id) {
+    const idx = photos.findIndex(x => x.id===id); if (idx===-1) return;
+    const p = photos[idx];
+    URL.revokeObjectURL(p.objUrl);
+    if (leafletMarkers[id]) { map.removeLayer(leafletMarkers[id]); delete leafletMarkers[id]; }
+    photos.splice(idx,1);
+    if (activeSidebarId===id) activeSidebarId=null;
+    if (activeModalId===id) closePhotoModal();
+    renderSidebar(); updateEmptyState(); showToast(`Removed ${p.name}`);
+}
+function removePhoto() {
+    if (!activeModalId) return;
+    const idx = photos.findIndex(p => p.id===activeModalId); if (idx===-1) return;
+    const p = photos[idx]; URL.revokeObjectURL(p.objUrl);
+    if (leafletMarkers[p.id]) { map.removeLayer(leafletMarkers[p.id]); delete leafletMarkers[p.id]; }
+    photos.splice(idx,1); closePhotoModal(); renderSidebar(); updateEmptyState(); showToast(`Removed ${p.name}`);
+}
+
+function openSettingsModal() {
+    const token = localStorage.getItem('ls_github_token') || '';
+    document.getElementById('netlify-token-input').value = token ? '••••••••••••••••' : '';
+    const badge = document.getElementById('token-badge');
+    const guide = document.getElementById('token-guide');
+    const testRow = document.getElementById('token-test-row');
+    if (token) {
+        badge.textContent = '✓ Connected'; badge.style.background = '#052e16'; badge.style.color = '#4ade80'; badge.style.border = '1px solid #059669';
+        guide.style.display = 'none'; testRow.style.display = 'flex'; testRow.style.gap = '6px';
+    } else {
+        badge.textContent = 'Not set'; badge.style.background = '#2d1515'; badge.style.color = '#f87171'; badge.style.border = '1px solid #7f1d1d';
+        guide.style.display = 'block'; testRow.style.display = 'none';
+    }
+    openModal('settings-modal');
+}
+function saveNetlifyToken() {
+    const val = document.getElementById('netlify-token-input').value.trim();
+    if (!val || val.startsWith('•')) { showToast('Paste your token first'); return; }
+    localStorage.setItem('ls_github_token', val);
+    showToast('Token saved ✓'); openSettingsModal();
+}
+function removeNetlifyToken() {
+    localStorage.removeItem('ls_github_token');
+    localStorage.removeItem('ls_github_user');
+    document.getElementById('netlify-token-input').value = '';
+    showToast('Token removed'); openSettingsModal();
+}
+async function testNetlifyToken() {
+    const token = localStorage.getItem('ls_github_token');
+    if (!token) { showToast('No token saved'); return; }
+    showToast('Testing…');
+    try {
+        const r = await fetch('https://api.github.com/user', { headers: { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json' } });
+        if (r.ok) { const u = await r.json(); localStorage.setItem('ls_github_user', u.login); showToast('✓ Connected as ' + u.login); }
+        else showToast('❌ Invalid token — check it in Settings');
+    } catch(e) { showToast('Network error'); }
+}
+
+function openPublishModal() {
+    if (photos.length === 0 && parcels.length === 0) { showToast('Add photos or parcels first'); return; }
+    const hasToken = !!localStorage.getItem('ls_github_token');
+    document.getElementById('publish-no-token-warn').style.display = hasToken ? 'none' : 'block';
+    document.getElementById('do-publish-btn').textContent = hasToken ? '📤 Share Map' : '⬇ Download File';
+    if (photos.length === 0 && parcels.length === 0) { showToast('Add photos or a parcel first'); return; }
+    isPublishing = false;
+    document.getElementById('publish-name-group').style.display = '';
+    document.getElementById('publish-status').style.display = 'none';
+    document.getElementById('publish-success').style.display = 'none';
+    document.getElementById('publish-footer').style.display = '';
+    document.getElementById('publish-footer').innerHTML = '<button class="btn btn-ghost" onclick="closeModal(\'publish-modal\')">Cancel</button><button class="btn btn-primary" id="do-publish-btn" onclick="startPublish()">⬇ Download Map File</button>';
+    document.getElementById('publish-modal-close').disabled = false;
+    document.getElementById('publish-name-input').value = parcels[0]?.name.replace(/\.(geojson|json|kml|kmz)$/i,'') || '';
+    openModal('publish-modal');
+}
+
+let lastPublishedUrl = null;
+
+async function startPublish() {
+    const name = document.getElementById('publish-name-input').value.trim();
+    if (!name) { showToast('Enter a property name'); return; }
+    const token = localStorage.getItem('ls_github_token');
+    isPublishing = true;
+    document.getElementById('publish-name-group').style.display = 'none';
+    document.getElementById('publish-status').style.display = 'flex';
+    document.getElementById('publish-footer').style.display = 'none';
+    document.getElementById('publish-modal-close').disabled = true;
+    try {
+        setPublishProgress('📸', 'Resizing photos…', 15);
+        const photoMeta = [], photoDataUrls = {};
+        for (const photo of photos) {
+            const jpegBlob = await resizeToJpeg(photo.file, 900);
+            const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g,'_').replace(/\.[^.]+$/,'') + '.jpg';
+            const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(jpegBlob); });
+            photoDataUrls[safeName] = dataUrl;
+            photoMeta.push({ filename: safeName, lat: photo.lat, lng: photo.lng, heading: photo.heading, altitude: photo.altitude, relAlt: photo.relAlt, datetime: photo.datetime ? new Date(photo.datetime).toISOString() : null, make: photo.make, model: photo.model, hasGps: photo.hasGps });
+        }
+        setPublishProgress('🗺️', 'Building map…', 60);
+        const parcelMeta = parcels.map(p => ({ name: p.name, color: p.color, geojson: p.geojson }));
+        const viewerHtml = generateShareableViewer(name, photoMeta, parcelMeta, photoDataUrls);
+        const blob = new Blob([viewerHtml], { type: 'text/html' });
+        const safeSlug = name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,50);
+        const fileName = 'landsight-' + safeSlug + '.html';
+
+        if (token) {
+            // ── GitHub Pages upload → shareable URL ──
+            setPublishProgress('🌐', 'Connecting to GitHub…', 65);
+            const ghHeaders = { 'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' };
+            // Get GitHub username
+            let ghUser = localStorage.getItem('ls_github_user');
+            if (!ghUser) {
+                let uRes; try { uRes = await fetch('https://api.github.com/user', { headers: ghHeaders }); } catch(e) { throw new Error('GitHub auth failed: ' + e.message); }
+                if (!uRes.ok) throw new Error('GitHub token invalid (' + uRes.status + ') — check Settings');
+                ghUser = (await uRes.json()).login;
+                localStorage.setItem('ls_github_user', ghUser);
+            }
+            // Repo name from property name
+            const repoName = 'landsight-' + name.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40);
+            const history = JSON.parse(localStorage.getItem('ls_properties') || '{}');
+            const knownRepo = history[name]?.repo;
+            // Create repo if needed
+            if (!knownRepo) {
+                setPublishProgress('📁', 'Creating site…', 72);
+                const createRes = await fetch('https://api.github.com/user/repos', { method:'POST', headers: ghHeaders, body: JSON.stringify({ name: repoName, private: false, auto_init: false, description: name + ' — LandSight map' }) });
+                if (!createRes.ok && createRes.status !== 422) { const e = await createRes.json().catch(()=>({})); throw new Error('Create repo failed (' + createRes.status + '): ' + (e.message||'')); }
+            }
+            // Base64 encode HTML (safe for all chars)
+            setPublishProgress('📦', 'Encoding map…', 78);
+            const b64Html = btoa(unescape(encodeURIComponent(viewerHtml)));
+            // Get existing file SHA if updating
+            setPublishProgress('🚀', 'Publishing…', 85);
+            let fileSha = null;
+            const fileCheckRes = await fetch('https://api.github.com/repos/' + ghUser + '/' + repoName + '/contents/index.html', { headers: ghHeaders });
+            if (fileCheckRes.ok) { fileSha = (await fileCheckRes.json()).sha; }
+            // Push index.html
+            const pushBody = { message: 'Update map: ' + name, content: b64Html };
+            if (fileSha) pushBody.sha = fileSha;
+            const pushRes = await fetch('https://api.github.com/repos/' + ghUser + '/' + repoName + '/contents/index.html', { method:'PUT', headers: ghHeaders, body: JSON.stringify(pushBody) });
+            if (!pushRes.ok) { const e = await pushRes.json().catch(()=>({})); throw new Error('Push failed (' + pushRes.status + '): ' + (e.message||'')); }
+            // Enable GitHub Pages if first publish
+            if (!knownRepo) {
+                await fetch('https://api.github.com/repos/' + ghUser + '/' + repoName + '/pages', { method:'POST', headers: ghHeaders, body: JSON.stringify({ source: { branch: 'main', path: '/' } }) });
+            }
+            const url = 'https://' + ghUser + '.github.io/' + repoName + '/';
+            history[name] = { repo: repoName, url, lastPublished: new Date().toISOString() };
+            localStorage.setItem('ls_properties', JSON.stringify(history));
+            lastPublishedUrl = url;
+            setPublishProgress('✅', 'Published!', 100);
+            setTimeout(() => {
+                document.getElementById('publish-status').style.display = 'none';
+                document.getElementById('publish-success').style.display = '';
+                document.getElementById('publish-success-title').textContent = 'Map published!';
+                document.getElementById('publish-url-wrap').style.display = 'block';
+                document.getElementById('publish-url-box').textContent = url;
+                document.getElementById('publish-success-hint').textContent = 'Share this link — your client taps it and the map opens in their browser.';
+                document.getElementById('publish-modal-close').disabled = false;
+                document.getElementById('publish-footer').innerHTML = '<button class="btn btn-primary" onclick="closeModal(\'publish-modal\')">Done</button>';
+                isPublishing = false;
+            }, 600);
+        } else {
+            // ── No token — fall back to file download ──
+            setPublishProgress('⬇', 'Preparing file…', 90);
+            const shareFile = new File([blob], fileName, { type: 'text/html' });
+            if (navigator.share && navigator.canShare && navigator.canShare({ files: [shareFile] })) {
+                await navigator.share({ title: name, files: [shareFile] });
+            } else {
+                const blobUrl = URL.createObjectURL(blob);
+                const a = document.createElement('a'); a.href = blobUrl; a.download = fileName; a.click(); URL.revokeObjectURL(blobUrl);
+            }
+            setPublishProgress('✅', 'Done!', 100);
+            setTimeout(() => {
+                document.getElementById('publish-status').style.display = 'none';
+                document.getElementById('publish-success').style.display = '';
+                document.getElementById('publish-success-title').textContent = 'Map file ready';
+                document.getElementById('publish-url-wrap').style.display = 'none';
+                document.getElementById('publish-success-hint').innerHTML = 'For a shareable link, <span style="color:#f59e0b;cursor:pointer;text-decoration:underline" onclick="closeModal(\'publish-modal\');openSettingsModal()">set up Netlify in Settings →</span>';
+                document.getElementById('publish-modal-close').disabled = false;
+                document.getElementById('publish-footer').innerHTML = '<button class="btn btn-primary" onclick="closeModal(\'publish-modal\')">Done</button>';
+                isPublishing = false;
+            }, 600);
+        }
+    } catch(err) {
+        if (err.name === 'AbortError') {
+            document.getElementById('publish-status').style.display = 'none';
+            document.getElementById('publish-name-group').style.display = '';
+            document.getElementById('publish-footer').style.display = '';
+            document.getElementById('publish-modal-close').disabled = false;
+            isPublishing = false; return;
+        }
+        console.error(err);
+        setPublishProgress('❌', err.message, 0);
+        document.getElementById('publish-modal-close').disabled = false;
+        document.getElementById('publish-footer').style.display = '';
+        document.getElementById('publish-footer').innerHTML = '<button class="btn btn-ghost" onclick="closeModal(\'publish-modal\')">Close</button><button class="btn btn-primary" onclick="startPublish()">Retry</button>';
+        isPublishing = false;
+    }
+}
+function copyPublishedUrl() {
+    if (!lastPublishedUrl) return;
+    navigator.clipboard.writeText(lastPublishedUrl).then(() => {
+        const btn = document.getElementById('copy-url-btn');
+        btn.textContent = 'Copied!'; btn.style.background = '#059669';
+        setTimeout(() => { btn.textContent = 'Copy'; btn.style.background = ''; }, 2000);
+    });
+}
+async function sharePublishedUrl() {
+    if (!lastPublishedUrl) return;
+    if (navigator.share) { await navigator.share({ title: document.getElementById('publish-name-input').value || 'LandSight Map', url: lastPublishedUrl }); }
+    else { copyPublishedUrl(); }
+}
+
+function setPublishProgress(icon, msg, pct) {
+    document.getElementById('publish-status-icon').textContent = icon;
+    document.getElementById('publish-status-msg').textContent = msg;
+    document.getElementById('progress-fill').style.width = pct + '%';
+}
+function copyUrl(url) { navigator.clipboard.writeText(url).then(() => showToast('Link copied!')).catch(() => showToast(url)); }
+
+function resizeToJpeg(file, maxPx) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+            let w = img.naturalWidth, h = img.naturalHeight;
+            if (w > maxPx || h > maxPx) { if (w > h) { h = Math.round(h * maxPx / w); w = maxPx; } else { w = Math.round(w * maxPx / h); h = maxPx; } }
+            const canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/jpeg', 0.82);
+            URL.revokeObjectURL(img.src);
+        };
+        img.onerror = reject;
+        img.src = URL.createObjectURL(file);
+    });
+}
+
+function generateShareableViewer(propertyName, photoMeta, parcelMeta, photoDataUrls) {
+    // Embed data URLs directly into each photo object so the HTML file is fully self-contained
+    const photosWithData = photoMeta.map(p => ({ ...p, src: (photoDataUrls || {})[p.filename] || '' }));
+    const dataJSON = JSON.stringify({ propertyName, photos: photosWithData, parcels: parcelMeta });
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>${propertyName} — LandSight</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f1117;color:#e2e8f0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow:hidden}
+#wrap{display:flex;flex-direction:column;width:100%;height:100%;height:-webkit-fill-available}
+#hdr{background:#13161f;border-bottom:1px solid #1e2235;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0;z-index:100}
+#hdr-title{font-size:15px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hdr-meta{font-size:11px;color:#475569;flex-shrink:0}
+#hdr-right{margin-left:auto;font-size:10px;color:#2e3550;flex-shrink:0}
+#map{flex:1;min-height:0;width:100%;touch-action:pan-x pan-y}
+/* Lightbox */
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:none;flex-direction:column;align-items:stretch;justify-content:flex-end;padding-bottom:env(safe-area-inset-bottom)}
+#lightbox.open{display:flex}
+#lb-box{background:#13161f;border-radius:20px 20px 0 0;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+#lb-drag{width:36px;height:4px;background:#2a2f45;border-radius:2px;margin:10px auto 6px}
+#lb-img-wrap{background:#0a0c12;display:flex;align-items:center;justify-content:center;max-height:42vh;overflow:hidden;flex-shrink:0}
+#lb-img{max-width:100%;max-height:42vh;object-fit:contain;display:block}
+#lb-body{padding:14px 18px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#lb-name{font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#lb-close-row{display:flex;justify-content:flex-end;padding:4px 12px 0}
+#lb-close{background:#1e2235;border:1px solid #2a2f45;color:#94a3b8;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+#lb-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
+.lm{background:#0f1117;border:1px solid #1e2235;border-radius:7px;padding:9px 11px}
+.lml{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px}
+.lmv{font-size:12px;color:#e2e8f0;font-weight:500}
+.lmv.g{color:#4ade80}.lmv.w{color:#f59e0b}
+.leaflet-container{background:#0a0c12}
+.leaflet-control-zoom{border:none!important;box-shadow:none!important}
+.leaflet-control-zoom a{background:#13161f!important;color:#94a3b8!important;border-color:#1e2235!important;width:34px!important;height:34px!important;line-height:34px!important;font-size:18px!important}
+.leaflet-control-attribution{background:rgba(19,22,31,.75)!important;color:#374151!important;font-size:10px!important}
+.leaflet-popup-content-wrapper{background:#13161f;border:1px solid #1e2235;border-radius:10px;color:#e2e8f0}
+.leaflet-popup-tip{background:#13161f}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hdr">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" flex-shrink="0"><rect x="2" y="2" width="20" height="20" rx="3" stroke="#f59e0b" stroke-width="2"/><circle cx="15.5" cy="8.5" r="2.8" fill="#f59e0b"/><circle cx="15.5" cy="8.5" r="1.3" fill="#0f1117"/><line x1="15.5" y1="8.5" x2="20" y2="4" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <span id="hdr-title">${propertyName}</span>
+    <span id="hdr-meta">${photoMeta.length} photo${photoMeta.length!==1?'s':''} · ${parcelMeta.length} parcel${parcelMeta.length!==1?'s':''}</span>
+    <span id="hdr-right">LandSight</span>
+  </div>
+  <div id="map"></div>
+</div>
+<div id="lightbox">
+  <div id="lb-box">
+    <div id="lb-close-row"><button id="lb-close" onclick="closeLb()">✕</button></div>
+    <div id="lb-drag"></div>
+    <div id="lb-img-wrap"><img id="lb-img" src="" alt=""></div>
+    <div id="lb-body"><div id="lb-name"></div><div id="lb-meta"></div></div>
+  </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
+<script>
+const DATA=${dataJSON};
+const map=L.map('map',{center:[39.5,-98.35],zoom:4,tap:true,tapTolerance:15,zoomControl:true});
+L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{attribution:'© Esri',maxZoom:21,maxNativeZoom:19}).addTo(map);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',{attribution:'© CartoDB',maxZoom:21,opacity:0.8}).addTo(map);
+DATA.parcels.forEach(p=>{L.geoJSON(p.geojson,{style:()=>({color:p.color,weight:2.5,opacity:0.95,fillColor:p.color,fillOpacity:0.10}),onEachFeature:(feat,lyr)=>{const rows=Object.entries(feat.properties||{}).filter(([k,v])=>v&&typeof v!=='object').slice(0,8).map(([k,v])=>'<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">'+k+'</span><br><span style="font-size:12px">'+v+'</span></div>').join('');if(rows)lyr.bindPopup('<div style="min-width:160px">'+rows+'</div>',{maxWidth:260});}}).addTo(map);});
+const bounds=[];
+DATA.photos.forEach(p=>{if(!p.hasGps)return;bounds.push([p.lat,p.lng]);const SZ=56,TH=40;let cone='';if(p.heading!=null){const fov=65,len=46,r=(fov/2)*Math.PI/180;const x1=(-Math.sin(r)*len).toFixed(1),y1=(-Math.cos(r)*len).toFixed(1),x2=(Math.sin(r)*len).toFixed(1);const gid='cg'+Math.random().toString(36).slice(2,7);cone='<svg style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) rotate('+p.heading+'deg);overflow:visible;pointer-events:none;z-index:1" width="'+SZ+'" height="'+SZ+'" viewBox="-'+(SZ/2)+' -'+(SZ/2)+' '+SZ+' '+SZ+'"><defs><radialGradient id="'+gid+'" cx="50%" cy="100%" r="100%"><stop offset="0%" stop-color="#3b82f6" stop-opacity="0.75"/><stop offset="100%" stop-color="#3b82f6" stop-opacity="0.05"/></radialGradient></defs><polygon points="0,0 '+x1+','+y1+' '+x2+','+y1+'" fill="url(#'+gid+')" stroke="rgba(96,165,250,0.9)" stroke-width="1.2" stroke-linejoin="round"/><\/svg>';}
+const border=p.heading!=null?'#ffffff':'#f59e0b';const icon=L.divIcon({className:'',html:'<div style="position:relative;width:'+SZ+'px;height:'+SZ+'px;display:flex;align-items:center;justify-content:center">'+cone+'<div style="width:'+TH+'px;height:'+TH+'px;border-radius:50%;border:3px solid '+border+';overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.7);position:relative;z-index:2;flex-shrink:0"><img src="'+p.src+'" style="width:100%;height:100%;object-fit:cover;display:block" draggable="false"\/><\/div><\/div>',iconSize:[SZ,SZ],iconAnchor:[SZ/2,SZ/2]});
+L.marker([p.lat,p.lng],{icon}).addTo(map).on('click',()=>openLb(p));});
+const allBounds=[];
+DATA.parcels.forEach(p=>{try{const b=L.geoJSON(p.geojson).getBounds();allBounds.push(b.getSouthWest(),b.getNorthEast());}catch(e){}});
+const allPts=[...bounds,...allBounds.map(b=>[b.lat,b.lng])];
+if(allPts.length>1)map.fitBounds(L.latLngBounds(allPts),{padding:[50,50],maxZoom:19});else if(bounds.length===1)map.setView(bounds[0],17);
+setTimeout(()=>map.invalidateSize(),100);
+function deg2card(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16];}
+function openLb(p){
+  document.getElementById('lb-img').src=p.src;
+  document.getElementById('lb-name').textContent=p.filename;
+  let altTxt='Unknown';
+  if(p.relAlt!=null)altTxt=parseFloat(p.relAlt).toFixed(1)+' m AGL';
+  else if(p.altitude!=null)altTxt=Math.round(p.altitude)+' m ASL';
+  document.getElementById('lb-meta').innerHTML=[
+    {l:'GPS',v:p.hasGps?p.lat.toFixed(6)+', '+p.lng.toFixed(6):'No GPS',c:p.hasGps?'g':'w'},
+    {l:'Heading',v:p.heading!=null?Math.round(p.heading)+'° '+deg2card(p.heading):'N/A'},
+    {l:'Altitude',v:altTxt},
+    {l:'Captured',v:p.datetime?new Date(p.datetime).toLocaleDateString():'Unknown'},
+    {l:'Camera',v:[p.make,p.model].filter(Boolean).join(' ')||'Unknown'}
+  ].map(m=>'<div class="lm"><div class="lml">'+m.l+'<\/div><div class="lmv '+(m.c||'')+'">'+m.v+'<\/div><\/div>').join('');
+  document.getElementById('lightbox').classList.add('open');
+}
+function closeLb(){document.getElementById('lightbox').classList.remove('open');}
+document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLb();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLb();});
+<\/script>
+</body></html>`;
+}
+
+const mapCont = document.getElementById('map-container');
+const dropOverlay = document.getElementById('drop-overlay');
+let dragN = 0;
+mapCont.addEventListener('dragenter', e => { e.preventDefault(); dragN++; dropOverlay.classList.add('active'); });
+mapCont.addEventListener('dragleave', () => { if (--dragN <= 0) { dragN=0; dropOverlay.classList.remove('active'); } });
+mapCont.addEventListener('dragover',  e => e.preventDefault());
+mapCont.addEventListener('drop', async e => {
+    e.preventDefault(); dragN=0; dropOverlay.classList.remove('active');
+    const files = Array.from(e.dataTransfer.files);
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    const parcFs = files.filter(f => /\.(geojson|json|kml|kmz)$/i.test(f.name));
+    if (imgs.length) await processPhotoFiles(imgs);
+    if (parcFs.length) for (const f of parcFs) await loadParcelFile(f);
+});
+
+function fitAll() {
+    const pts = photos.filter(p => p.hasGps).map(p => [p.lat, p.lng]);
+    parcels.filter(p => p.visible).forEach(p => { try { const b = p.layer.getBounds(); pts.push([b.getSouth(),b.getWest()],[b.getNorth(),b.getEast()]); } catch(e) {} });
+    if (!pts.length) { showToast('Nothing to fit'); return; }
+    if (pts.length === 1) { map.flyTo(pts[0], 17); return; }
+    map.fitBounds(L.latLngBounds(pts), { padding:[50,50], maxZoom:19 });
+}
+function updateEmptyState() { document.getElementById('empty-state').style.display = (photos.length===0 && parcels.length===0) ? 'block' : 'none'; }
+// ── Parcel search with autocomplete ────────────────────────────────────────
+let searchDebounceTimer = null;
+let suggestionItems = [];
+let activeSuggestionIdx = -1;
+
+function onSearchInput() {
+    clearTimeout(searchDebounceTimer);
+    const q = document.getElementById('parcel-search-input').value.trim();
+    if (q.length < 2) { closeSuggestions(); return; }
+    searchDebounceTimer = setTimeout(() => fetchSuggestions(q), 350);
+}
+
+function onSearchKeydown(e) {
+    const box = document.getElementById('search-suggestions');
+    const items = box.querySelectorAll('.suggestion-item');
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeSuggestionIdx = Math.min(activeSuggestionIdx + 1, items.length - 1);
+        items.forEach((el, i) => el.classList.toggle('active', i === activeSuggestionIdx));
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeSuggestionIdx = Math.max(activeSuggestionIdx - 1, -1);
+        items.forEach((el, i) => el.classList.toggle('active', i === activeSuggestionIdx));
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (activeSuggestionIdx >= 0 && suggestionItems[activeSuggestionIdx]) {
+            pickSuggestion(suggestionItems[activeSuggestionIdx]);
+        } else {
+            searchParcel();
+        }
+    } else if (e.key === 'Escape') {
+        closeSuggestions();
+    }
+}
+
+async function fetchSuggestions(q) {
+    const apnLike = /^[\d\-\.]+$/.test(q);
+    suggestionItems = [];
+    activeSuggestionIdx = -1;
+
+    if (apnLike) {
+        // APN suggestions: query all counties
+        const results = [];
+        await Promise.all(COUNTY_SERVICES.map(async county => {
+            try {
+                const params = new URLSearchParams({
+                    where: `APN LIKE '${q.replace(/'/g,"''")}%'`,
+                    outFields: 'APN,SitusAddressFull,SitusAddress,Acres,GIS_Acres',
+                    returnGeometry: 'false', f: 'json', resultRecordCount: 5
+                });
+                const r = await fetch(`${county.url}/query?${params}`);
+                if (!r.ok) return;
+                const data = await r.json();
+                (data.features || []).forEach(f => {
+                    const p = f.attributes || {};
+                    const apn = p.APN || '';
+                    const addr = p.SitusAddressFull || p.SitusAddress || '';
+                    results.push({ type:'apn', label: apn, sub: addr ? `${addr} · ${county.name}` : county.name, county, apn });
+                });
+            } catch(e) {}
+        }));
+        suggestionItems = results.slice(0, 8);
+    } else {
+        // Address suggestions: query ArcGIS parcel DB directly
+        const upper = q.toUpperCase().trim();
+        // Parse "123 Oak" → num="123", name="OAK"  OR  "Oak" → name="OAK"
+        const numMatch = upper.match(/^(\d+)\s+(.*)/);
+        const streetNum = numMatch ? numMatch[1] : null;
+        const streetName = numMatch ? numMatch[2] : upper;
+        const namePart = streetName.split(' ')[0]; // first word only for broader match
+
+        const results = [];
+        const seen = new Set();
+        await Promise.all(COUNTY_SERVICES.map(async county => {
+            try {
+                let where;
+                if (streetNum) {
+                    where = `${county.streetNum} LIKE '${streetNum}%' AND ${county.streetName} LIKE '${namePart}%'`;
+                } else {
+                    where = `${county.streetName} LIKE '${namePart}%'`;
+                }
+                const params = new URLSearchParams({
+                    where, outFields: `APN,${county.addrFull}`,
+                    returnGeometry: 'false', f: 'json', resultRecordCount: 6,
+                    orderByFields: county.addrFull
+                });
+                const r = await fetch(`${county.url}/query?${params}`);
+                if (!r.ok) return;
+                const data = await r.json();
+                (data.features || []).forEach(f => {
+                    const p = f.attributes || {};
+                    const apn = p.APN || '';
+                    const addr = (p[county.addrFull] || '').trim();
+                    if (!addr || !apn || seen.has(apn)) return;
+                    seen.add(apn);
+                    results.push({ type:'apn', label: addr, sub: `APN ${apn} · ${county.name}`, county, apn });
+                });
+            } catch(e) {}
+        }));
+        // Sort by address relevance (exact street number match first)
+        results.sort((a, b) => {
+            if (streetNum) {
+                const aStarts = a.label.startsWith(streetNum) ? 0 : 1;
+                const bStarts = b.label.startsWith(streetNum) ? 0 : 1;
+                if (aStarts !== bStarts) return aStarts - bStarts;
+            }
+            return a.label.localeCompare(b.label);
+        });
+        suggestionItems = results.slice(0, 8);
+    }
+
+    renderSuggestions();
+}
+
+function renderSuggestions() {
+    const box = document.getElementById('search-suggestions');
+    if (!suggestionItems.length) { closeSuggestions(); return; }
+    box.innerHTML = suggestionItems.map((s, i) =>
+        `<div class="suggestion-item" onmousedown="pickSuggestion(suggestionItems[${i}])">
+            <div class="suggestion-label">${s.label}</div>
+            ${s.sub ? `<div class="suggestion-sub">${s.sub}</div>` : ''}
+        </div>`
+    ).join('');
+    box.classList.add('open');
+}
+
+function closeSuggestions() {
+    document.getElementById('search-suggestions').classList.remove('open');
+    document.getElementById('search-suggestions').innerHTML = '';
+    suggestionItems = [];
+    activeSuggestionIdx = -1;
+}
+
+async function pickSuggestion(s) {
+    closeSuggestions();
+    if (s.outOfBounds) { showToast('That address is outside supported counties'); return; }
+    document.getElementById('sidebar').classList.remove('sheet-open');
+    document.getElementById('parcel-search-input').value = s.label;
+
+    if (s.type === 'apn') {
+        showToast('Loading parcel…');
+        try {
+            const params = new URLSearchParams({ where: `APN='${s.apn}'`, outFields: '*', f: 'geojson', outSR: '4326' });
+            const r = await fetch(`${s.county.url}/query?${params}`);
+            const geojson = await r.json();
+            if (geojson.features && geojson.features.length) await addParcelToMap(geojson, s.county);
+            else showToast('Parcel not found');
+        } catch(e) { showToast('Failed: ' + e.message); }
+    } else {
+        map.setView([s.lat, s.lng], 17);
+        const county = COUNTY_SERVICES.find(c =>
+            s.lng >= c.bounds.minLng && s.lng <= c.bounds.maxLng &&
+            s.lat >= c.bounds.minLat && s.lat <= c.bounds.maxLat);
+        if (county) await loadParcelAtPoint(s.lat, s.lng, county);
+        else showToast('Address not in a supported county');
+    }
+    document.getElementById('parcel-search-input').value = '';
+}
+
+async function searchParcel() {
+    closeSuggestions();
+    const query = document.getElementById('parcel-search-input').value.trim();
+    if (!query) return;
+    document.getElementById('sidebar').classList.remove('sheet-open');
+    const apnLike = /^[\d\-\.]+$/.test(query);
+    if (apnLike) await searchByAPN(query);
+    else await searchByAddress(query);
+}
+
+async function searchByAddress(address) {
+    showToast('Searching…');
+    const upper = address.toUpperCase().trim();
+    const numMatch = upper.match(/^(\d+)\s+(.*)/);
+    const streetNum = numMatch ? numMatch[1] : null;
+    const streetName = numMatch ? numMatch[2] : upper;
+    const namePart = streetName.split(' ')[0];
+
+    for (const county of COUNTY_SERVICES) {
+        try {
+            let where;
+            if (streetNum) {
+                where = `${county.streetNum} LIKE '${streetNum}%' AND ${county.streetName} LIKE '${namePart}%'`;
+            } else {
+                where = `${county.streetName} LIKE '${namePart}%'`;
+            }
+            const params = new URLSearchParams({ where, outFields: `APN,${county.addrFull}`, f: 'geojson', outSR: '4326', resultRecordCount: 1 });
+            const resp = await fetch(`${county.url}/query?${params}`);
+            if (!resp.ok) continue;
+            const geojson = await resp.json();
+            if (geojson.features && geojson.features.length > 0) {
+                await addParcelToMap(geojson, county);
+                return;
+            }
+        } catch(e) { continue; }
+    }
+    showToast('Address not found — try just the street number and name');
+}
+
+async function searchByAPN(apn) {
+    showToast('Searching APN…');
+    const clean = apn.replace(/\s/g, '');
+    for (const county of COUNTY_SERVICES) {
+        try {
+            const params = new URLSearchParams({ where: `APN='${clean}'`, outFields: '*', f: 'geojson', outSR: '4326' });
+            const resp = await fetch(`${county.url}/query?${params}`);
+            if (!resp.ok) continue;
+            const geojson = await resp.json();
+            if (geojson.features && geojson.features.length > 0) { await addParcelToMap(geojson, county); return; }
+        } catch(e) { continue; }
+    }
+    showToast('APN not found — try with dashes e.g. 076-240-022');
+}
+
+async function loadParcelAtPoint(lat, lng, county) {
+    showToast(`Loading ${county.name} parcel…`);
+    try {
+        const params = new URLSearchParams({
+            geometry: `${lng},${lat}`,
+            geometryType: 'esriGeometryPoint',
+            spatialRel: 'esriSpatialRelIntersects',
+            outFields: '*', f: 'geojson', inSR: '4326', outSR: '4326'
+        });
+        const resp = await fetch(`${county.url}/query?${params}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const geojson = await resp.json();
+        if (!geojson.features || !geojson.features.length) { showToast('No parcel found at that address'); return; }
+        await addParcelToMap(geojson, county);
+    } catch(err) { console.error(err); showToast('Failed: ' + err.message); }
+}
+
+async function addParcelToMap(geojson, county) {
+    const props = geojson.features[0].properties || {};
+    const label = props[county.labelField] || props.APN || props.PARCELNO || props.Parcel_ID || 'Parcel';
+    const name = `${county.name} — ${label}`;
+    const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
+    const layer = L.geoJSON(geojson, {
+        style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.10 }),
+        onEachFeature: (feature, lyr) => {
+            const p = feature.properties || {};
+            const rows = Object.entries(p).filter(([k,v]) => v && typeof v !== 'object' && !['shape__area','shape__length','objectid','globalid'].includes(k.toLowerCase())).slice(0,10)
+                .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
+            if (rows) lyr.bindPopup(`<div style="min-width:160px;max-height:200px;overflow-y:auto">${rows}</div>`, { maxWidth: 280 });
+        }
+    }).addTo(map);
+    parcels.push({ id: uid('par'), name, color, layer, geojson, visible: true, featureCount: geojson.features.length });
+    try { map.fitBounds(layer.getBounds(), { padding:[40,40], maxZoom:19 }); } catch(e) {}
+    renderSidebar(); updateEmptyState();
+    showToast(`Loaded: ${label}`);
+    document.getElementById('parcel-search-input').value = '';
+}
+
+// ── Tap-to-find-parcel ──────────────────────────────────────────────────────
+const COUNTY_SERVICES = [
+    {
+        name: 'Placer County',
+        url: 'https://services6.arcgis.com/PArfeTGcwA9RGNzN/arcgis/rest/services/Public_Parcels/FeatureServer/4',
+        bounds: { minLng:-121.485, minLat:38.699, maxLng:-120.003, maxLat:39.332 },
+        labelField: 'SitusAddressFull',
+        addrFull: 'SitusAddressFull', streetNum: 'StreetNum', streetName: 'StreetName'
+    },
+    {
+        name: 'El Dorado County',
+        url: 'https://services.arcgis.com/UHg8l1wC48WQyDSO/arcgis/rest/services/ParcelBase/FeatureServer/0',
+        bounds: { minLng:-121.152, minLat:38.491, maxLng:-119.871, maxLat:39.082 },
+        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'HouseNum', streetName: 'StreetName'
+    },
+    {
+        name: 'Yolo County',
+        url: 'https://services2.arcgis.com/RETsakmE0SJfZXCd/arcgis/rest/services/Yolo_County_Tax_Parcels_Open_Data_/FeatureServer/0',
+        bounds: { minLng:-122.423, minLat:38.313, maxLng:-121.498, maxLat:38.926 },
+        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'StreetNum', streetName: 'StreetName'
+    },
+    {
+        name: 'Nevada County',
+        url: 'https://maps.nevadacountyca.gov/arcgis/rest/services/web_public/Open_Data_Layers_Nevada_County_1/FeatureServer/200',
+        bounds: { minLng:-121.281, minLat:39.005, maxLng:-120.003, maxLat:39.527 },
+        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'StreetNum', streetName: 'StreetName'
+    }
+];
+
+let findParcelMode = false;
+
+function toggleFindParcel() {
+    findParcelMode = !findParcelMode;
+    const banner = document.getElementById('find-banner');
+    const mapEl = document.getElementById('map');
+    const fab = document.getElementById('find-parcel-fab');
+    const btn = document.getElementById('find-parcel-btn');
+    banner.classList.toggle('show', findParcelMode);
+    mapEl.classList.toggle('find-mode', findParcelMode);
+    if (fab) fab.classList.toggle('active', findParcelMode);
+    if (btn) btn.style.background = findParcelMode ? '#f59e0b' : '';
+    if (btn) btn.style.color = findParcelMode ? '#1a0a00' : '';
+    // On mobile, close the bottom sheet so the map is fully visible
+    if (findParcelMode) {
+        document.getElementById('sidebar').classList.remove('sheet-open');
+        showToast('Tap your property on the map');
+    }
+}
+
+map.on('click', async (e) => {
+    if (!findParcelMode) return;
+    const { lat, lng } = e.latlng;
+
+    // Find matching county
+    const county = COUNTY_SERVICES.find(c =>
+        lng >= c.bounds.minLng && lng <= c.bounds.maxLng &&
+        lat >= c.bounds.minLat && lat <= c.bounds.maxLat
+    );
+    if (!county) {
+        showToast('No supported county at that location');
+        return;
+    }
+
+    showToast(`Looking up ${county.name} parcel…`);
+    try {
+        const params = new URLSearchParams({
+            geometry: `${lng},${lat}`,
+            geometryType: 'esriGeometryPoint',
+            spatialRel: 'esriSpatialRelIntersects',
+            outFields: '*',
+            f: 'geojson',
+            inSR: '4326',
+            outSR: '4326'
+        });
+        const resp = await fetch(`${county.url}/query?${params}`);
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        const geojson = await resp.json();
+        if (!geojson.features || geojson.features.length === 0) {
+            showToast('No parcel found at that spot — try tapping the center of the property');
+            return;
+        }
+        await addParcelToMap(geojson, county);
+        toggleFindParcel();
+    } catch(err) {
+        console.error(err);
+        showToast('Failed to load parcel: ' + err.message);
+    }
+});
+
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { if (id === 'publish-modal' && isPublishing) return; document.getElementById(id).classList.remove('open'); }
+
+// ── Save / Load session ──────────────────────────────────────────────
+async function saveSession() {
+    if (photos.length === 0 && parcels.length === 0) { showToast('Nothing to save yet'); return; }
+    showToast('Saving…');
+    const zip = new JSZip();
+    const photoMeta = [];
+    for (const photo of photos) {
+        if (!photo.file) continue;
+        const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        zip.folder('photos').file(safeName, photo.file);
+        photoMeta.push({ filename:safeName, lat:photo.lat, lng:photo.lng, heading:photo.heading,
+            altitude:photo.altitude, relAlt:photo.relAlt,
+            datetime:photo.datetime ? new Date(photo.datetime).toISOString() : null,
+            make:photo.make, model:photo.model, hasGps:photo.hasGps });
+    }
+    const parcelData = parcels.map(p => ({ name:p.name, color:p.color, visible:p.visible, geojson:p.geojson, featureCount:p.featureCount }));
+    zip.file('session.json', JSON.stringify({ version:1, savedAt:new Date().toISOString(),
+        mapCenter:[map.getCenter().lat, map.getCenter().lng], mapZoom:map.getZoom(),
+        photos:photoMeta, parcels:parcelData }));
+    const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:3} });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = `landsight-${new Date().toISOString().slice(0,10)}.lsmap`;
+    a.click(); URL.revokeObjectURL(a.href);
+    showToast('Session saved ✓');
+}
+
+function loadSession() { document.getElementById('session-input').click(); }
+
+async function restoreSession(file) {
+    showToast('Loading session…');
+    try {
+        const zip = await JSZip.loadAsync(file);
+        const sFile = zip.file('session.json');
+        if (!sFile) { showToast('Invalid .lsmap file'); return; }
+        const session = JSON.parse(await sFile.async('string'));
+        // Clear existing
+        photos.forEach(p => { URL.revokeObjectURL(p.objUrl); if (leafletMarkers[p.id]) { map.removeLayer(leafletMarkers[p.id]); delete leafletMarkers[p.id]; } });
+        photos = []; parcels.forEach(p => map.removeLayer(p.layer)); parcels = [];
+        activeSidebarId = null; activeModalId = null; parcelColorIdx = 0;
+        // Restore photos
+        for (const pm of (session.photos || [])) {
+            const fname = pm.filename || pm.name; if (!fname) continue;
+            const zf = zip.file('photos/' + fname); if (!zf) continue;
+            const blob = await zf.async('blob');
+            const pFile = new File([blob], fname, { type: fname.match(/\.png$/i) ? 'image/png' : 'image/jpeg' });
+            const objUrl = URL.createObjectURL(blob);
+            const photo = { id:uid('p'), file:pFile, name:fname, size:blob.size, objUrl,
+                lat:pm.lat, lng:pm.lng, origLat:pm.origLat, origLng:pm.origLng,
+                heading:pm.heading, altitude:pm.altitude, relAlt:pm.relAlt,
+                datetime:pm.datetime ? new Date(pm.datetime) : null,
+                make:pm.make||'', model:pm.model||'', hasGps:pm.hasGps };
+            photos.push(photo); if (photo.hasGps) addPhotoMarker(photo);
+        }
+        // Restore parcels
+        for (const pd of (session.parcels || [])) {
+            const layer = L.geoJSON(pd.geojson, {
+                style: () => ({ color:pd.color, weight:2.5, opacity:0.95, fillColor:pd.color, fillOpacity:0.10 }),
+                onEachFeature: (feature, lyr) => {
+                    const props = feature.properties || {};
+                    const rows = Object.entries(props).filter(([k,v]) => v && typeof v !== 'object' && k.toLowerCase() !== 'styleurl').slice(0,8)
+                        .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
+                    if (rows) lyr.bindPopup(`<div style="min-width:160px">${rows}</div>`, { maxWidth:260 });
+                    lyr.on('click', () => { lyr.setStyle({fillOpacity:0.25,weight:3.5}); setTimeout(()=>lyr.setStyle({fillOpacity:0.10,weight:2.5}),600); });
+                }
+            }).addTo(map);
+            if (!pd.visible) map.removeLayer(layer);
+            parcels.push({ id:uid('par'), name:pd.name, color:pd.color, layer, geojson:pd.geojson, visible:pd.visible, featureCount:pd.featureCount });
+        }
+        parcelColorIdx = parcels.length;
+        if (session.mapCenter && session.mapZoom) map.setView(session.mapCenter, session.mapZoom); else fitAll();
+        renderSidebar(); updateEmptyState();
+        showToast(`Loaded ${photos.length} photo${photos.length!==1?'s':''} · ${parcels.length} parcel${parcels.length!==1?'s':''}`);
+    } catch(err) { console.error(err); showToast('Failed to load: ' + err.message); }
+}
+document.getElementById('session-input').addEventListener('change', async (e) => {
+    const file = e.target.files[0]; if (!file) return; e.target.value = '';
+    await restoreSession(file);
+});
+function deg2card(d) { return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16]; }
+function fmtBytes(b) { if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
+function uid(p) { return `${p}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`; }
+let toastT;
+function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3500); }
+document.addEventListener('keydown', e => { if(e.key==='Escape'&&!isPublishing){closePhotoModal();closeModal('settings-modal');closeModal('publish-modal');} if((e.key==='f'||e.key==='F')&&!e.target.closest('input,textarea'))fitAll(); });
+
+// Camera button — only show on touch devices
+if (!('ontouchstart' in window) && !navigator.maxTouchPoints) { document.getElementById('camera-btn').style.display = 'none'; }
+
+// PWA manifest
+(function() {
+    const icon = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230f1117'/><rect x='8' y='8' width='84' height='84' rx='10' fill='none' stroke='%23f59e0b' stroke-width='7'/><rect x='24' y='24' width='52' height='52' rx='7' fill='none' stroke='%23f59e0b' stroke-width='4.5' opacity='0.55'/><rect x='40' y='40' width='20' height='20' rx='4' fill='none' stroke='%23f59e0b' stroke-width='2.5' opacity='0.3'/><circle cx='68' cy='32' r='11' fill='%23f59e0b'/><circle cx='68' cy='32' r='5.5' fill='%230f1117'/><line x1='68' y1='32' x2='86' y2='14' stroke='%23f59e0b' stroke-width='5' stroke-linecap='round'/></svg>`;
+    const manifest = { name:'LandSight', short_name:'LandSight', description:'Place drone and phone photos on a satellite parcel map', start_url:'./', display:'standalone', background_color:'#0f1117', theme_color:'#13161f', orientation:'any', icons:[{ src:`data:image/svg+xml,${icon}`, sizes:'any', type:'image/svg+xml', purpose:'any maskable' }] };
+    const blob = new Blob([JSON.stringify(manifest)], { type:'application/manifest+json' });
+    document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
+})();
+
+renderSidebar();
+updateEmptyState();
+</script>
