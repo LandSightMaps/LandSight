@@ -1286,8 +1286,17 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
 #lightbox.open{display:flex}
 #lb-box{background:#13161f;border-radius:20px 20px 0 0;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
 #lb-drag{width:36px;height:4px;background:#2a2f45;border-radius:2px;margin:10px auto 6px}
-#lb-img-wrap{background:#0a0c12;display:flex;align-items:center;justify-content:center;max-height:42vh;overflow:hidden;flex-shrink:0}
-#lb-img{max-width:100%;max-height:42vh;object-fit:contain;display:block}
+#lb-img-wrap{background:#0a0c12;display:flex;align-items:center;justify-content:center;max-height:42vh;overflow:hidden;flex-shrink:0;position:relative}
+#lb-img{max-width:100%;max-height:42vh;object-fit:contain;display:block;cursor:zoom-in}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;opacity:0.8;padding:0;line-height:1}
+.lb-nav:disabled{opacity:0.15;cursor:default;pointer-events:none}
+#lb-nav-prev{left:8px}
+#lb-nav-next{right:8px}
+#lb-counter{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#94a3b8;font-size:10px;padding:2px 7px;border-radius:8px;pointer-events:none;white-space:nowrap}
+#fs-view{display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.97);align-items:center;justify-content:center;cursor:zoom-out}
+#fs-view.open{display:flex}
+#fs-img{max-width:100vw;max-height:100vh;object-fit:contain;pointer-events:none}
+#fs-close{position:fixed;top:14px;right:16px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:20px;padding:5px 11px;border-radius:7px;cursor:pointer;z-index:100000}
 #lb-body{padding:14px 18px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 #lb-name{font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #lb-close-row{display:flex;justify-content:flex-end;padding:4px 12px 0}
@@ -1308,10 +1317,10 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
 <body>
 <div id="wrap">
   <div id="hdr">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" flex-shrink="0"><rect x="2" y="2" width="20" height="20" rx="3" stroke="#f59e0b" stroke-width="2"/><circle cx="15.5" cy="8.5" r="2.8" fill="#f59e0b"/><circle cx="15.5" cy="8.5" r="1.3" fill="#0f1117"/><line x1="15.5" y1="8.5" x2="20" y2="4" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <svg width="20" height="20" viewBox="0 0 52 52" fill="none" flex-shrink="0"><rect width="52" height="52" rx="11" fill="#0c111e"/><rect x="6" y="6" width="40" height="40" rx="7" stroke="#f59e0b" stroke-width="3.5"/><rect x="14" y="14" width="24" height="24" rx="4" stroke="#f59e0b" stroke-width="2" opacity="0.45"/><circle cx="33" cy="19" r="5.5" fill="#3b82f6"/><circle cx="33" cy="19" r="2.5" fill="#0c111e"/><line x1="33" y1="19" x2="43" y2="9" stroke="#3b82f6" stroke-width="2.8" stroke-linecap="round"/></svg>
     <span id="hdr-title">${propertyName}</span>
     <span id="hdr-meta">${photoMeta.length} photo${photoMeta.length!==1?'s':''} · ${parcelMeta.length} parcel${parcelMeta.length!==1?'s':''}</span>
-    <span id="hdr-right">LandSight</span>
+    <span id="hdr-right">LandSightMaps</span>
   </div>
   <div id="map"></div>
 </div>
@@ -1319,9 +1328,18 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
   <div id="lb-box">
     <div id="lb-close-row"><button id="lb-close" onclick="closeLb()">✕</button></div>
     <div id="lb-drag"></div>
-    <div id="lb-img-wrap"><img id="lb-img" src="" alt=""></div>
+    <div id="lb-img-wrap">
+      <button class="lb-nav" id="lb-nav-prev" onclick="navLb(-1)">&#8249;</button>
+      <img id="lb-img" src="" alt="" onclick="openFsView()">
+      <button class="lb-nav" id="lb-nav-next" onclick="navLb(1)">&#8250;</button>
+      <div id="lb-counter"></div>
+    </div>
     <div id="lb-body"><div id="lb-name"></div><div id="lb-meta"></div></div>
   </div>
+</div>
+<div id="fs-view" onclick="closeFsView()">
+  <button id="fs-close" onclick="event.stopPropagation();closeFsView()">✕</button>
+  <img id="fs-img" src="" alt="">
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>
 <script>
@@ -1340,7 +1358,16 @@ const allPts=[...bounds,...allBounds.map(b=>[b.lat,b.lng])];
 if(allPts.length>1)map.fitBounds(L.latLngBounds(allPts),{padding:[50,50],maxZoom:19});else if(bounds.length===1)map.setView(bounds[0],17);
 setTimeout(()=>map.invalidateSize(),100);
 function deg2card(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16];}
+const _gphotos=DATA.photos.filter(p=>p.hasGps);
+let _lbIdx=0;
 function openLb(p){
+  _lbIdx=_gphotos.indexOf(p);
+  _renderLb();
+  document.getElementById('lightbox').classList.add('open');
+}
+function _renderLb(){
+  const p=_gphotos[_lbIdx];
+  if(!p)return;
   document.getElementById('lb-img').src=p.src;
   document.getElementById('lb-name').textContent=p.filename;
   let altTxt='Unknown';
@@ -1353,10 +1380,32 @@ function openLb(p){
     {l:'Captured',v:p.datetime?new Date(p.datetime).toLocaleString():'Unknown'},
     {l:'Camera',v:[p.make,p.model].filter(Boolean).join(' ')||'Unknown'}
   ].map(m=>'<div class="lm"><div class="lml">'+m.l+'</div><div class="lmv '+(m.c||'')+'">'+m.v+'</div></div>').join('');
-  document.getElementById('lightbox').classList.add('open');
+  const total=_gphotos.length;
+  const prev=document.getElementById('lb-nav-prev');
+  const next=document.getElementById('lb-nav-next');
+  const ctr=document.getElementById('lb-counter');
+  if(total<=1){prev.style.display='none';next.style.display='none';ctr.style.display='none';}
+  else{prev.style.display='';next.style.display='';ctr.style.display='';prev.disabled=_lbIdx<=0;next.disabled=_lbIdx>=total-1;ctr.textContent=(_lbIdx+1)+' / '+total;}
+}
+function navLb(dir){
+  const n=_lbIdx+dir;
+  if(n<0||n>=_gphotos.length)return;
+  _lbIdx=n;_renderLb();
 }
 function closeLb(){document.getElementById('lightbox').classList.remove('open');}
+function openFsView(){
+  const src=document.getElementById('lb-img').src;
+  if(!src)return;
+  document.getElementById('fs-img').src=src;
+  document.getElementById('fs-view').classList.add('open');
+}
+function closeFsView(){document.getElementById('fs-view').classList.remove('open');document.getElementById('fs-img').src='';}
 document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLb();});
+document.addEventListener('keydown',e=>{
+  if(e.key==='Escape'){if(document.getElementById('fs-view').classList.contains('open')){closeFsView();return;}closeLb();}
+  if(e.key==='ArrowLeft')navLb(-1);
+  if(e.key==='ArrowRight')navLb(1);
+});
 <\/script>
 </body>
 </html>
