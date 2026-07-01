@@ -1287,7 +1287,6 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
 #lb-box{background:#13161f;border-radius:20px 20px 0 0;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
 #lb-drag{width:36px;height:4px;background:#2a2f45;border-radius:2px;margin:10px auto 6px}
 #lb-img-wrap{background:#0a0c12;display:flex;align-items:center;justify-content:center;max-height:42vh;overflow:hidden;flex-shrink:0;position:relative}
-#lb-img{max-width:100%;max-height:42vh;object-fit:contain;display:block;cursor:zoom-in}
 .lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;opacity:0.8;padding:0;line-height:1}
 .lb-nav:disabled{opacity:0.15;cursor:default;pointer-events:none}
 #lb-nav-prev{left:8px}
@@ -1330,7 +1329,9 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
     <div id="lb-drag"></div>
     <div id="lb-img-wrap">
       <button class="lb-nav" id="lb-nav-prev" onclick="navLb(-1)">&#8249;</button>
-      <img id="lb-img" src="" alt="" onclick="openFsView()">
+      <div id="lb-img-tap" style="display:flex;align-items:center;justify-content:center;flex:1;cursor:zoom-in;touch-action:manipulation;-webkit-tap-highlight-color:transparent">
+        <img id="lb-img" src="" alt="" style="max-width:100%;max-height:42vh;object-fit:contain;display:block;pointer-events:none">
+      </div>
       <button class="lb-nav" id="lb-nav-next" onclick="navLb(1)">&#8250;</button>
       <div id="lb-counter"></div>
     </div>
@@ -1394,12 +1395,14 @@ function navLb(dir){
 }
 function closeLb(){document.getElementById('lightbox').classList.remove('open');}
 function openFsView(){
-  const src=document.getElementById('lb-img').src;
-  if(!src)return;
-  document.getElementById('fs-img').src=src;
+  const img=document.getElementById('lb-img');
+  if(!img||!img.src||img.src===window.location.href)return;
+  document.getElementById('fs-img').src=img.src;
   document.getElementById('fs-view').classList.add('open');
 }
 function closeFsView(){document.getElementById('fs-view').classList.remove('open');document.getElementById('fs-img').src='';}
+document.getElementById('lb-img-tap').addEventListener('click',openFsView);
+document.getElementById('lb-img-tap').addEventListener('touchend',function(e){e.preventDefault();openFsView();});
 document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLb();});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){if(document.getElementById('fs-view').classList.contains('open')){closeFsView();return;}closeLb();}
