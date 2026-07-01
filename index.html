@@ -823,7 +823,7 @@ function renderSidebar() {
             <div class="parcel-swatch" style="background:${p.color}"></div>
             <div class="parcel-info">
                 <div class="parcel-name" title="${p.name}">${p.name}</div>
-                <div class="parcel-meta">${p.featureCount} feature${p.featureCount!==1?'s':''}</div>
+                ${p.apn ? `<div class="parcel-meta" style="color:#f59e0b;font-weight:600">APN: ${p.apn}</div>` : `<div class="parcel-meta">${p.featureCount} feature${p.featureCount!==1?'s':''}</div>`}
             </div>
             <div class="parcel-actions">
                 <div class="pi-btn ${p.visible?'':'muted'}" onclick="toggleParcelVisibility('${p.id}')" title="${p.visible?'Hide':'Show'}">👁</div>
@@ -1274,480 +1274,347 @@ function openLb(p){
     {l:'GPS',v:p.hasGps?p.lat.toFixed(6)+', '+p.lng.toFixed(6):'No GPS',c:p.hasGps?'g':'w'},
     {l:'Heading',v:p.heading!=null?Math.round(p.heading)+'° '+deg2card(p.heading):'N/A'},
     {l:'Altitude',v:altTxt},
-    {l:'Captured',v:p.datetime?new Date(p.datetime).toLocaleDateString():'Unknown'},
+    {l:'Captured',v:p.datetime?new Date(p.datetime).toLocaleString():'Unknown'},
     {l:'Camera',v:[p.make,p.model].filter(Boolean).join(' ')||'Unknown'}
-  ].map(m=>'<div class="lm"><div class="lml">'+m.l+'<\/div><div class="lmv '+(m.c||'')+'">'+m.v+'<\/div><\/div>').join('');
+  ].map(m=>'<div class="lm"><div class="lml">'+m.l+'</div><div class="lmv '+(m.c||'')+'">'+m.v+'</div></div>').join('');
   document.getElementById('lightbox').classList.add('open');
 }
 function closeLb(){document.getElementById('lightbox').classList.remove('open');}
 document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLb();});
-document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLb();});
 <\/script>
-</body></html>`;
-}
+</body>
+</html>
+`;}
 
-const mapCont = document.getElementById('map-container');
-const dropOverlay = document.getElementById('drop-overlay');
-let dragN = 0;
-mapCont.addEventListener('dragenter', e => { e.preventDefault(); dragN++; dropOverlay.classList.add('active'); });
-mapCont.addEventListener('dragleave', () => { if (--dragN <= 0) { dragN=0; dropOverlay.classList.remove('active'); } });
-mapCont.addEventListener('dragover',  e => e.preventDefault());
-mapCont.addEventListener('drop', async e => {
-    e.preventDefault(); dragN=0; dropOverlay.classList.remove('active');
-    const files = Array.from(e.dataTransfer.files);
-    const imgs = files.filter(f => f.type.startsWith('image/'));
-    const parcFs = files.filter(f => /\.(geojson|json|kml|kmz)$/i.test(f.name));
-    if (imgs.length) await processPhotoFiles(imgs);
-    if (parcFs.length) for (const f of parcFs) await loadParcelFile(f);
-});
-
+// === Fit all ===
 function fitAll() {
-    const pts = photos.filter(p => p.hasGps).map(p => [p.lat, p.lng]);
-    parcels.filter(p => p.visible).forEach(p => { try { const b = p.layer.getBounds(); pts.push([b.getSouth(),b.getWest()],[b.getNorth(),b.getEast()]); } catch(e) {} });
-    if (!pts.length) { showToast('Nothing to fit'); return; }
-    if (pts.length === 1) { map.flyTo(pts[0], 17); return; }
-    map.fitBounds(L.latLngBounds(pts), { padding:[50,50], maxZoom:19 });
+    const pts = [];
+    photos.filter(p => p.hasGps).forEach(p => pts.push([p.lat, p.lng]));
+    parcels.forEach(p => { try { const b = p.layer.getBounds(); pts.push(b.getSouthWest(), b.getNorthEast()); } catch(e) {} });
+    if (!pts.length) { showToast('Nothing on map yet'); return; }
+    if (pts.length === 1) { map.setView(pts[0], 18); return; }
+    try { map.fitBounds(L.latLngBounds(pts), { padding: [50, 50], maxZoom: 19 }); } catch(e) {}
 }
-function updateEmptyState() { document.getElementById('empty-state').style.display = (photos.length===0 && parcels.length===0) ? 'block' : 'none'; }
-// ── Parcel search with autocomplete ────────────────────────────────────────
-let searchDebounceTimer = null;
-let suggestionItems = [];
-let activeSuggestionIdx = -1;
+
+// === Address / Parcel search (ArcGIS Geocoder) ===
+let _searchTimer = null, _suggIdx = -1;
+const _SUGGEST_URL = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/suggest';
+const _FIND_URL    = 'https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates';
 
 function onSearchInput() {
-    clearTimeout(searchDebounceTimer);
+    clearTimeout(_searchTimer);
     const q = document.getElementById('parcel-search-input').value.trim();
-    if (q.length < 2) { closeSuggestions(); return; }
-    searchDebounceTimer = setTimeout(() => fetchSuggestions(q), 350);
+    if (q.length < 2) { _closeSugg(); return; }
+    _searchTimer = setTimeout(() => _fetchSugg(q), 300);
+}
+
+async function _fetchSugg(q) {
+    try {
+        // Bias toward California using the map's current center
+        const c = map.getCenter();
+        const params = new URLSearchParams({ text: q, f: 'json', maxSuggestions: 6, countryCode: 'USA', location: `${c.lng},${c.lat}`, distance: 160000 });
+        const r = await fetch(`${_SUGGEST_URL}?${params}`);
+        const data = await r.json();
+        const items = (data.suggestions || []).filter(s => !s.isCollection);
+        const box = document.getElementById('search-suggestions');
+        if (!items.length) {
+            box.innerHTML = '<div class="suggestion-item"><div class="suggestion-label" style="color:#475569">No results</div></div>';
+            box.classList.add('open'); return;
+        }
+        _suggIdx = -1;
+        box.innerHTML = items.map((s, i) => {
+            const parts = s.text.split(',');
+            return `<div class="suggestion-item" onclick="_pickSugg('${encodeURIComponent(s.text)}','${encodeURIComponent(s.magicKey||'')}')" data-idx="${i}">
+                <div class="suggestion-label">${parts[0]}</div>
+                <div class="suggestion-sub">${parts.slice(1, 3).join(',').trim()}</div>
+            </div>`;
+        }).join('');
+        box.classList.add('open');
+    } catch(e) { console.warn('Search err:', e); }
+}
+
+function _closeSugg() { document.getElementById('search-suggestions').classList.remove('open'); _suggIdx = -1; }
+
+async function _pickSugg(text, magicKey) {
+    _closeSugg();
+    document.getElementById('parcel-search-input').value = '';
+    try {
+        const params = new URLSearchParams({ SingleLine: decodeURIComponent(text), magicKey: decodeURIComponent(magicKey), f: 'json', outFields: 'Place_addr', forStorage: 'false' });
+        const r = await fetch(`${_FIND_URL}?${params}`);
+        const data = await r.json();
+        const c = data.candidates?.[0];
+        if (!c?.location) return;
+        const lat = c.location.y, lng = c.location.x;
+        map.flyTo([lat, lng], 17, { duration: 1.0 });
+        // Load parcel boundary + APN for this address
+        showToast('Loading parcel…');
+        const apn = await loadParcelAtPoint(lat, lng);
+        if (apn) showToast(`APN: ${apn}`);
+        else showToast('No parcel boundary found for this address');
+    } catch(e) { console.warn('Geocode err:', e); }
 }
 
 function onSearchKeydown(e) {
-    const box = document.getElementById('search-suggestions');
-    const items = box.querySelectorAll('.suggestion-item');
-    if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        activeSuggestionIdx = Math.min(activeSuggestionIdx + 1, items.length - 1);
-        items.forEach((el, i) => el.classList.toggle('active', i === activeSuggestionIdx));
-    } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        activeSuggestionIdx = Math.max(activeSuggestionIdx - 1, -1);
-        items.forEach((el, i) => el.classList.toggle('active', i === activeSuggestionIdx));
-    } else if (e.key === 'Enter') {
-        e.preventDefault();
-        if (activeSuggestionIdx >= 0 && suggestionItems[activeSuggestionIdx]) {
-            pickSuggestion(suggestionItems[activeSuggestionIdx]);
-        } else {
-            searchParcel();
-        }
-    } else if (e.key === 'Escape') {
-        closeSuggestions();
-    }
+    const items = document.querySelectorAll('.suggestion-item');
+    if (!items.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); _suggIdx = Math.min(_suggIdx + 1, items.length - 1); items.forEach((el, i) => el.classList.toggle('active', i === _suggIdx)); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); _suggIdx = Math.max(_suggIdx - 1, 0); items.forEach((el, i) => el.classList.toggle('active', i === _suggIdx)); }
+    else if (e.key === 'Enter') { e.preventDefault(); if (_suggIdx >= 0 && items[_suggIdx]) items[_suggIdx].click(); else searchParcel(); }
+    else if (e.key === 'Escape') { _closeSugg(); }
 }
 
-async function fetchSuggestions(q) {
-    const apnLike = /^[\d\-\.]+$/.test(q);
-    suggestionItems = [];
-    activeSuggestionIdx = -1;
-
-    if (apnLike) {
-        // APN suggestions: query all counties
-        const results = [];
-        await Promise.all(COUNTY_SERVICES.map(async county => {
-            try {
-                const params = new URLSearchParams({
-                    where: `APN LIKE '${q.replace(/'/g,"''")}%'`,
-                    outFields: 'APN,SitusAddressFull,SitusAddress,Acres,GIS_Acres',
-                    returnGeometry: 'false', f: 'json', resultRecordCount: 5
-                });
-                const r = await fetch(`${county.url}/query?${params}`);
-                if (!r.ok) return;
-                const data = await r.json();
-                (data.features || []).forEach(f => {
-                    const p = f.attributes || {};
-                    const apn = p.APN || '';
-                    const addr = p.SitusAddressFull || p.SitusAddress || '';
-                    results.push({ type:'apn', label: apn, sub: addr ? `${addr} · ${county.name}` : county.name, county, apn });
-                });
-            } catch(e) {}
-        }));
-        suggestionItems = results.slice(0, 8);
-    } else {
-        // Address suggestions: query ArcGIS parcel DB directly
-        const upper = q.toUpperCase().trim();
-        // Parse "123 Oak" → num="123", name="OAK"  OR  "Oak" → name="OAK"
-        const numMatch = upper.match(/^(\d+)\s+(.*)/);
-        const streetNum = numMatch ? numMatch[1] : null;
-        const streetName = numMatch ? numMatch[2] : upper;
-        const namePart = streetName.split(' ')[0]; // first word only for broader match
-
-        const results = [];
-        const seen = new Set();
-        await Promise.all(COUNTY_SERVICES.map(async county => {
-            try {
-                let where;
-                if (streetNum) {
-                    where = `${county.streetNum} LIKE '${streetNum}%' AND ${county.streetName} LIKE '${namePart}%'`;
-                } else {
-                    where = `${county.streetName} LIKE '${namePart}%'`;
-                }
-                const params = new URLSearchParams({
-                    where, outFields: `APN,${county.addrFull}`,
-                    returnGeometry: 'false', f: 'json', resultRecordCount: 6,
-                    orderByFields: county.addrFull
-                });
-                const r = await fetch(`${county.url}/query?${params}`);
-                if (!r.ok) return;
-                const data = await r.json();
-                (data.features || []).forEach(f => {
-                    const p = f.attributes || {};
-                    const apn = p.APN || '';
-                    const addr = (p[county.addrFull] || '').trim();
-                    if (!addr || !apn || seen.has(apn)) return;
-                    seen.add(apn);
-                    results.push({ type:'apn', label: addr, sub: `APN ${apn} · ${county.name}`, county, apn });
-                });
-            } catch(e) {}
-        }));
-        // Sort by address relevance (exact street number match first)
-        results.sort((a, b) => {
-            if (streetNum) {
-                const aStarts = a.label.startsWith(streetNum) ? 0 : 1;
-                const bStarts = b.label.startsWith(streetNum) ? 0 : 1;
-                if (aStarts !== bStarts) return aStarts - bStarts;
-            }
-            return a.label.localeCompare(b.label);
-        });
-        suggestionItems = results.slice(0, 8);
-    }
-
-    renderSuggestions();
+function searchParcel() {
+    const q = document.getElementById('parcel-search-input').value.trim();
+    if (!q) return;
+    _closeSugg();
+    _fetchSugg(q);
 }
 
-function renderSuggestions() {
-    const box = document.getElementById('search-suggestions');
-    if (!suggestionItems.length) { closeSuggestions(); return; }
-    box.innerHTML = suggestionItems.map((s, i) =>
-        `<div class="suggestion-item" onmousedown="pickSuggestion(suggestionItems[${i}])">
-            <div class="suggestion-label">${s.label}</div>
-            ${s.sub ? `<div class="suggestion-sub">${s.sub}</div>` : ''}
-        </div>`
-    ).join('');
-    box.classList.add('open');
-}
+document.addEventListener('click', e => { if (!e.target.closest('#parcel-search-box')) _closeSugg(); });
 
-function closeSuggestions() {
-    document.getElementById('search-suggestions').classList.remove('open');
-    document.getElementById('search-suggestions').innerHTML = '';
-    suggestionItems = [];
-    activeSuggestionIdx = -1;
-}
-
-async function pickSuggestion(s) {
-    closeSuggestions();
-    if (s.outOfBounds) { showToast('That address is outside supported counties'); return; }
-    document.getElementById('sidebar').classList.remove('sheet-open');
-    document.getElementById('parcel-search-input').value = s.label;
-
-    if (s.type === 'apn') {
-        showToast('Loading parcel…');
-        try {
-            const params = new URLSearchParams({ where: `APN='${s.apn}'`, outFields: '*', f: 'geojson', outSR: '4326' });
-            const r = await fetch(`${s.county.url}/query?${params}`);
-            const geojson = await r.json();
-            if (geojson.features && geojson.features.length) await addParcelToMap(geojson, s.county);
-            else showToast('Parcel not found');
-        } catch(e) { showToast('Failed: ' + e.message); }
-    } else {
-        map.setView([s.lat, s.lng], 17);
-        const county = COUNTY_SERVICES.find(c =>
-            s.lng >= c.bounds.minLng && s.lng <= c.bounds.maxLng &&
-            s.lat >= c.bounds.minLat && s.lat <= c.bounds.maxLat);
-        if (county) await loadParcelAtPoint(s.lat, s.lng, county);
-        else showToast('Address not in a supported county');
-    }
-    document.getElementById('parcel-search-input').value = '';
-}
-
-async function searchParcel() {
-    closeSuggestions();
-    const query = document.getElementById('parcel-search-input').value.trim();
-    if (!query) return;
-    document.getElementById('sidebar').classList.remove('sheet-open');
-    const apnLike = /^[\d\-\.]+$/.test(query);
-    if (apnLike) await searchByAPN(query);
-    else await searchByAddress(query);
-}
-
-async function searchByAddress(address) {
-    showToast('Searching…');
-    const upper = address.toUpperCase().trim();
-    const numMatch = upper.match(/^(\d+)\s+(.*)/);
-    const streetNum = numMatch ? numMatch[1] : null;
-    const streetName = numMatch ? numMatch[2] : upper;
-    const namePart = streetName.split(' ')[0];
-
-    for (const county of COUNTY_SERVICES) {
-        try {
-            let where;
-            if (streetNum) {
-                where = `${county.streetNum} LIKE '${streetNum}%' AND ${county.streetName} LIKE '${namePart}%'`;
-            } else {
-                where = `${county.streetName} LIKE '${namePart}%'`;
-            }
-            const params = new URLSearchParams({ where, outFields: `APN,${county.addrFull}`, f: 'geojson', outSR: '4326', resultRecordCount: 1 });
-            const resp = await fetch(`${county.url}/query?${params}`);
-            if (!resp.ok) continue;
-            const geojson = await resp.json();
-            if (geojson.features && geojson.features.length > 0) {
-                await addParcelToMap(geojson, county);
-                return;
-            }
-        } catch(e) { continue; }
-    }
-    showToast('Address not found — try just the street number and name');
-}
-
-async function searchByAPN(apn) {
-    showToast('Searching APN…');
-    const clean = apn.replace(/\s/g, '');
-    for (const county of COUNTY_SERVICES) {
-        try {
-            const params = new URLSearchParams({ where: `APN='${clean}'`, outFields: '*', f: 'geojson', outSR: '4326' });
-            const resp = await fetch(`${county.url}/query?${params}`);
-            if (!resp.ok) continue;
-            const geojson = await resp.json();
-            if (geojson.features && geojson.features.length > 0) { await addParcelToMap(geojson, county); return; }
-        } catch(e) { continue; }
-    }
-    showToast('APN not found — try with dashes e.g. 076-240-022');
-}
-
-async function loadParcelAtPoint(lat, lng, county) {
-    showToast(`Loading ${county.name} parcel…`);
-    try {
-        const params = new URLSearchParams({
-            geometry: `${lng},${lat}`,
-            geometryType: 'esriGeometryPoint',
-            spatialRel: 'esriSpatialRelIntersects',
-            outFields: '*', f: 'geojson', inSR: '4326', outSR: '4326'
-        });
-        const resp = await fetch(`${county.url}/query?${params}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const geojson = await resp.json();
-        if (!geojson.features || !geojson.features.length) { showToast('No parcel found at that address'); return; }
-        await addParcelToMap(geojson, county);
-    } catch(err) { console.error(err); showToast('Failed: ' + err.message); }
-}
-
-async function addParcelToMap(geojson, county) {
-    const props = geojson.features[0].properties || {};
-    const label = props[county.labelField] || props.APN || props.PARCELNO || props.Parcel_ID || 'Parcel';
-    const name = `${county.name} — ${label}`;
-    const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
-    const layer = L.geoJSON(geojson, {
-        style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.10 }),
-        onEachFeature: (feature, lyr) => {
-            const p = feature.properties || {};
-            const rows = Object.entries(p).filter(([k,v]) => v && typeof v !== 'object' && !['shape__area','shape__length','objectid','globalid'].includes(k.toLowerCase())).slice(0,10)
-                .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
-            if (rows) lyr.bindPopup(`<div style="min-width:160px;max-height:200px;overflow-y:auto">${rows}</div>`, { maxWidth: 280 });
-        }
-    }).addTo(map);
-    parcels.push({ id: uid('par'), name, color, layer, geojson, visible: true, featureCount: geojson.features.length });
-    try { map.fitBounds(layer.getBounds(), { padding:[40,40], maxZoom:19 }); } catch(e) {}
-    renderSidebar(); updateEmptyState();
-    showToast(`Loaded: ${label}`);
-    document.getElementById('parcel-search-input').value = '';
-}
-
-// ── Tap-to-find-parcel ──────────────────────────────────────────────────────
+// === County parcel services ===
 const COUNTY_SERVICES = [
-    {
-        name: 'Placer County',
-        url: 'https://services6.arcgis.com/PArfeTGcwA9RGNzN/arcgis/rest/services/Public_Parcels/FeatureServer/4',
-        bounds: { minLng:-121.485, minLat:38.699, maxLng:-120.003, maxLat:39.332 },
-        labelField: 'SitusAddressFull',
-        addrFull: 'SitusAddressFull', streetNum: 'StreetNum', streetName: 'StreetName'
-    },
-    {
-        name: 'El Dorado County',
-        url: 'https://services.arcgis.com/UHg8l1wC48WQyDSO/arcgis/rest/services/ParcelBase/FeatureServer/0',
-        bounds: { minLng:-121.152, minLat:38.491, maxLng:-119.871, maxLat:39.082 },
-        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'HouseNum', streetName: 'StreetName'
-    },
-    {
-        name: 'Yolo County',
-        url: 'https://services2.arcgis.com/RETsakmE0SJfZXCd/arcgis/rest/services/Yolo_County_Tax_Parcels_Open_Data_/FeatureServer/0',
-        bounds: { minLng:-122.423, minLat:38.313, maxLng:-121.498, maxLat:38.926 },
-        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'StreetNum', streetName: 'StreetName'
-    },
-    {
-        name: 'Nevada County',
-        url: 'https://maps.nevadacountyca.gov/arcgis/rest/services/web_public/Open_Data_Layers_Nevada_County_1/FeatureServer/200',
-        bounds: { minLng:-121.281, minLat:39.005, maxLng:-120.003, maxLat:39.527 },
-        labelField: 'SitusAddress', addrFull: 'SitusAddress', streetNum: 'StreetNum', streetName: 'StreetName'
-    }
+    { name:'Placer',     url:'https://services6.arcgis.com/PArfeTGcwA9RGNzN/arcgis/rest/services/Public_Parcels/FeatureServer/4',                                                                              apnField:'APN',             bbox:{ s:38.73, n:39.32, w:-121.50, e:-120.00 } },
+    { name:'Sacramento', url:'https://services1.arcgis.com/5NARefyPVtAeuJPU/arcgis/rest/services/Parcels/FeatureServer/0',                                                                                     apnField:'APN',             bbox:{ s:38.02, n:38.74, w:-121.86, e:-121.02 } },
+    { name:'El Dorado',  url:'https://services.arcgis.com/UHg8l1wC48WQyDSO/arcgis/rest/services/ParcelBase/FeatureServer/0',                                                                                   apnField:'PRCL_12DIGIT',    bbox:{ s:38.52, n:39.07, w:-121.01, e:-119.88 } },
+    { name:'Nevada',     url:'https://maps.nevadacountyca.gov/arcgis/rest/services/web_public/Open_Data_Layers_Nevada_County_1/FeatureServer/200',                                                              apnField:'APN',             bbox:{ s:39.07, n:39.47, w:-121.26, e:-120.00 } },
+    { name:'Yolo',       url:'https://services2.arcgis.com/RETsakmE0SJfZXCd/arcgis/rest/services/Yolo_County_Tax_Parcels_Open_Data_/FeatureServer/0',                                                          apnField:'MPTS_ASMT_NUMBER',bbox:{ s:38.40, n:38.94, w:-122.41, e:-121.59 } },
 ];
 
-let findParcelMode = false;
+function _getApn(props, apnField) {
+    // Try the known field first, then common fallbacks
+    const candidates = [apnField,'APN','PARCELID','PARCEL_ID','PRCL_12DIGIT','MPTS_ASMT_NUMBER','PRCL_ID'];
+    for (const f of candidates) { if (props[f]) return String(props[f]).trim(); }
+    return null;
+}
 
+async function loadParcelAtPoint(lat, lng) {
+    // Find candidate counties (point in bounding box)
+    const candidates = COUNTY_SERVICES.filter(c => lat >= c.bbox.s && lat <= c.bbox.n && lng >= c.bbox.w && lng <= c.bbox.e);
+    // Fall back to all if no bbox match (edge of county)
+    const services = candidates.length ? candidates : COUNTY_SERVICES;
+
+    for (const svc of services) {
+        try {
+            const params = new URLSearchParams({
+                geometry: JSON.stringify({ x: lng, y: lat }),
+                geometryType: 'esriGeometryPoint',
+                inSR: '4326', outSR: '4326',
+                spatialRel: 'esriSpatialRelIntersects',
+                outFields: '*', f: 'geojson'
+            });
+            const r = await fetch(`${svc.url}/query?${params}`);
+            if (!r.ok) continue;
+            const gj = await r.json();
+            if (!gj.features?.length) continue;
+
+            const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
+            const f0props = gj.features[0]?.properties || {};
+            const apn = _getApn(f0props, svc.apnField);
+            const situs = f0props.SitusAddressFull || f0props.PRCL_ADDR || f0props.FormattedSitus1 || f0props.Situs_Address || '';
+            const displayName = apn || situs || svc.name + ' Parcel';
+
+            const layer = L.geoJSON(gj, {
+                style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.15 }),
+                onEachFeature: (feature, lyr) => {
+                    const props = feature.properties || {};
+                    const rows = Object.entries(props)
+                        .filter(([k,v]) => v != null && v !== '' && typeof v !== 'object' && !['Shape__Area','Shape__Length','OBJECTID','GlobalID'].includes(k))
+                        .slice(0, 10)
+                        .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
+                    if (rows) lyr.bindPopup(`<div style="min-width:160px">${rows}</div>`, { maxWidth: 260 });
+                    lyr.on('click', () => { lyr.setStyle({ fillOpacity:0.3, weight:3.5 }); setTimeout(() => lyr.setStyle({ fillOpacity:0.15, weight:2.5 }), 700); });
+                }
+            }).addTo(map);
+
+            parcels.push({ id: uid('par'), name: displayName, apn, color, layer, geojson: gj, visible: true, featureCount: gj.features.length, county: svc.name });
+            try { map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 19 }); } catch(_) {}
+            renderSidebar(); updateEmptyState();
+            return apn; // return APN so caller can use it
+        } catch(err) { console.warn(`${svc.name} parcel query failed:`, err); }
+    }
+    return null; // no result from any county
+}
+
+// === Find parcel by map tap ===
+let findParcelMode = false;
 function toggleFindParcel() {
     findParcelMode = !findParcelMode;
-    const banner = document.getElementById('find-banner');
-    const mapEl = document.getElementById('map');
+    document.getElementById('find-banner').classList.toggle('show', findParcelMode);
+    document.getElementById('map').classList.toggle('find-mode', findParcelMode);
+    document.getElementById('find-parcel-btn').classList.toggle('active', findParcelMode);
     const fab = document.getElementById('find-parcel-fab');
-    const btn = document.getElementById('find-parcel-btn');
-    banner.classList.toggle('show', findParcelMode);
-    mapEl.classList.toggle('find-mode', findParcelMode);
     if (fab) fab.classList.toggle('active', findParcelMode);
-    if (btn) btn.style.background = findParcelMode ? '#f59e0b' : '';
-    if (btn) btn.style.color = findParcelMode ? '#1a0a00' : '';
-    // On mobile, close the bottom sheet so the map is fully visible
-    if (findParcelMode) {
-        document.getElementById('sidebar').classList.remove('sheet-open');
-        showToast('Tap your property on the map');
-    }
 }
 
 map.on('click', async (e) => {
     if (!findParcelMode) return;
+    toggleFindParcel();
     const { lat, lng } = e.latlng;
-
-    // Find matching county
-    const county = COUNTY_SERVICES.find(c =>
-        lng >= c.bounds.minLng && lng <= c.bounds.maxLng &&
-        lat >= c.bounds.minLat && lat <= c.bounds.maxLat
-    );
-    if (!county) {
-        showToast('No supported county at that location');
-        return;
-    }
-
-    showToast(`Looking up ${county.name} parcel…`);
-    try {
-        const params = new URLSearchParams({
-            geometry: `${lng},${lat}`,
-            geometryType: 'esriGeometryPoint',
-            spatialRel: 'esriSpatialRelIntersects',
-            outFields: '*',
-            f: 'geojson',
-            inSR: '4326',
-            outSR: '4326'
-        });
-        const resp = await fetch(`${county.url}/query?${params}`);
-        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        const geojson = await resp.json();
-        if (!geojson.features || geojson.features.length === 0) {
-            showToast('No parcel found at that spot — try tapping the center of the property');
-            return;
-        }
-        await addParcelToMap(geojson, county);
-        toggleFindParcel();
-    } catch(err) {
-        console.error(err);
-        showToast('Failed to load parcel: ' + err.message);
-    }
+    showToast('Looking up parcel…');
+    const apn = await loadParcelAtPoint(lat, lng);
+    if (apn) showToast(`Loaded · APN: ${apn}`);
+    else showToast('No parcel found here — try a GIS file download');
 });
 
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { if (id === 'publish-modal' && isPublishing) return; document.getElementById(id).classList.remove('open'); }
-
-// ── Save / Load session ──────────────────────────────────────────────
-async function saveSession() {
-    if (photos.length === 0 && parcels.length === 0) { showToast('Nothing to save yet'); return; }
-    showToast('Saving…');
-    const zip = new JSZip();
-    const photoMeta = [];
-    for (const photo of photos) {
-        if (!photo.file) continue;
-        const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-        zip.folder('photos').file(safeName, photo.file);
-        photoMeta.push({ filename:safeName, lat:photo.lat, lng:photo.lng, heading:photo.heading,
-            altitude:photo.altitude, relAlt:photo.relAlt,
-            datetime:photo.datetime ? new Date(photo.datetime).toISOString() : null,
-            make:photo.make, model:photo.model, hasGps:photo.hasGps });
-    }
-    const parcelData = parcels.map(p => ({ name:p.name, color:p.color, visible:p.visible, geojson:p.geojson, featureCount:p.featureCount }));
-    zip.file('session.json', JSON.stringify({ version:1, savedAt:new Date().toISOString(),
-        mapCenter:[map.getCenter().lat, map.getCenter().lng], mapZoom:map.getZoom(),
-        photos:photoMeta, parcels:parcelData }));
-    const blob = await zip.generateAsync({ type:'blob', compression:'DEFLATE', compressionOptions:{level:3} });
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = `landsight-${new Date().toISOString().slice(0,10)}.lsmap`;
-    a.click(); URL.revokeObjectURL(a.href);
-    showToast('Session saved ✓');
+// === County section toggle ===
+let _countiesOpen = true;
+function toggleCounties() {
+    _countiesOpen = !_countiesOpen;
+    document.getElementById('county-list').style.display = _countiesOpen ? '' : 'none';
+    document.getElementById('county-chevron').textContent = _countiesOpen ? '▲' : '▼';
 }
+
+// === Session save / load ===
+function saveSession() {
+    showToast('Saving…');
+    const sessionData = {
+        v: 2,
+        parcels: parcels.map(p => ({ id: p.id, name: p.name, color: p.color, geojson: p.geojson, featureCount: p.featureCount })),
+        photoMeta: photos.map(p => ({
+            id: p.id, name: p.name, size: p.size,
+            lat: p.lat, lng: p.lng, origLat: p.origLat, origLng: p.origLng,
+            heading: p.heading, altitude: p.altitude, relAlt: p.relAlt,
+            datetime: p.datetime ? new Date(p.datetime).toISOString() : null,
+            make: p.make, model: p.model, hasGps: p.hasGps
+        }))
+    };
+    // Convert blob URLs to data URLs so photos survive save/reload
+    Promise.all(photos.map(async (p, i) => {
+        try {
+            if (p.objUrl) {
+                const res = await fetch(p.objUrl);
+                const blob = await res.blob();
+                sessionData.photoMeta[i].dataUrl = await new Promise(res2 => {
+                    const fr = new FileReader(); fr.onload = e => res2(e.target.result); fr.readAsDataURL(blob);
+                });
+            }
+        } catch(_) {}
+    })).then(() => {
+        const blob = new Blob([JSON.stringify(sessionData)], { type: 'application/json' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'landsight-session.lsmap';
+        a.click();
+        URL.revokeObjectURL(a.href);
+        showToast('Session saved ✓');
+    }).catch(err => showToast('Save failed: ' + err.message));
+}
+
+document.getElementById('session-input').addEventListener('change', async (e) => {
+    if (e.target.files[0]) await _loadSessionFile(e.target.files[0]);
+    e.target.value = '';
+});
 
 function loadSession() { document.getElementById('session-input').click(); }
 
-async function restoreSession(file) {
-    showToast('Loading session…');
+async function _loadSessionFile(file) {
     try {
-        const zip = await JSZip.loadAsync(file);
-        const sFile = zip.file('session.json');
-        if (!sFile) { showToast('Invalid .lsmap file'); return; }
-        const session = JSON.parse(await sFile.async('string'));
+        const data = JSON.parse(await file.text());
         // Clear existing
-        photos.forEach(p => { URL.revokeObjectURL(p.objUrl); if (leafletMarkers[p.id]) { map.removeLayer(leafletMarkers[p.id]); delete leafletMarkers[p.id]; } });
-        photos = []; parcels.forEach(p => map.removeLayer(p.layer)); parcels = [];
-        activeSidebarId = null; activeModalId = null; parcelColorIdx = 0;
-        // Restore photos
-        for (const pm of (session.photos || [])) {
-            const fname = pm.filename || pm.name; if (!fname) continue;
-            const zf = zip.file('photos/' + fname); if (!zf) continue;
-            const blob = await zf.async('blob');
-            const pFile = new File([blob], fname, { type: fname.match(/\.png$/i) ? 'image/png' : 'image/jpeg' });
-            const objUrl = URL.createObjectURL(blob);
-            const photo = { id:uid('p'), file:pFile, name:fname, size:blob.size, objUrl,
-                lat:pm.lat, lng:pm.lng, origLat:pm.origLat, origLng:pm.origLng,
-                heading:pm.heading, altitude:pm.altitude, relAlt:pm.relAlt,
-                datetime:pm.datetime ? new Date(pm.datetime) : null,
-                make:pm.make||'', model:pm.model||'', hasGps:pm.hasGps };
-            photos.push(photo); if (photo.hasGps) addPhotoMarker(photo);
-        }
-        // Restore parcels
-        for (const pd of (session.parcels || [])) {
+        photos.forEach(p => {
+            if (p.objUrl) URL.revokeObjectURL(p.objUrl);
+            if (leafletMarkers[p.id]) { map.removeLayer(leafletMarkers[p.id]); delete leafletMarkers[p.id]; }
+        });
+        parcels.forEach(p => map.removeLayer(p.layer));
+        photos = []; parcels = []; activeSidebarId = null; activeModalId = null; parcelColorIdx = 0;
+
+        for (const pd of (data.parcels || [])) {
+            const color = pd.color || PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
             const layer = L.geoJSON(pd.geojson, {
-                style: () => ({ color:pd.color, weight:2.5, opacity:0.95, fillColor:pd.color, fillOpacity:0.10 }),
+                style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.10 }),
                 onEachFeature: (feature, lyr) => {
-                    const props = feature.properties || {};
-                    const rows = Object.entries(props).filter(([k,v]) => v && typeof v !== 'object' && k.toLowerCase() !== 'styleurl').slice(0,8)
+                    const rows = Object.entries(feature.properties || {}).filter(([k,v]) => v != null && v !== '' && typeof v !== 'object' && k.toLowerCase() !== 'styleurl').slice(0,8)
                         .map(([k,v]) => `<div style="margin:3px 0"><span style="color:#64748b;font-size:10px;text-transform:uppercase">${k}</span><br><span style="font-size:12px">${v}</span></div>`).join('');
-                    if (rows) lyr.bindPopup(`<div style="min-width:160px">${rows}</div>`, { maxWidth:260 });
-                    lyr.on('click', () => { lyr.setStyle({fillOpacity:0.25,weight:3.5}); setTimeout(()=>lyr.setStyle({fillOpacity:0.10,weight:2.5}),600); });
+                    if (rows) lyr.bindPopup(`<div style="min-width:160px">${rows}</div>`, { maxWidth: 260 });
                 }
             }).addTo(map);
-            if (!pd.visible) map.removeLayer(layer);
-            parcels.push({ id:uid('par'), name:pd.name, color:pd.color, layer, geojson:pd.geojson, visible:pd.visible, featureCount:pd.featureCount });
+            parcels.push({ id: pd.id || uid('par'), name: pd.name, color, layer, geojson: pd.geojson, visible: true, featureCount: pd.featureCount || pd.geojson.features?.length || 0 });
         }
-        parcelColorIdx = parcels.length;
-        if (session.mapCenter && session.mapZoom) map.setView(session.mapCenter, session.mapZoom); else fitAll();
+        for (const ph of (data.photoMeta || data.photos || [])) {
+            if (ph.dataUrl) {
+                ph.objUrl = ph.dataUrl;
+                delete ph.dataUrl;
+            } else {
+                ph.objUrl = '';
+            }
+            photos.push(ph);
+            if (ph.hasGps && ph.objUrl) addPhotoMarker(ph);
+        }
         renderSidebar(); updateEmptyState();
-        showToast(`Loaded ${photos.length} photo${photos.length!==1?'s':''} · ${parcels.length} parcel${parcels.length!==1?'s':''}`);
+        setTimeout(fitAll, 300);
+        showToast('Session loaded ✓');
     } catch(err) { console.error(err); showToast('Failed to load: ' + err.message); }
 }
-document.getElementById('session-input').addEventListener('change', async (e) => {
-    const file = e.target.files[0]; if (!file) return; e.target.value = '';
-    await restoreSession(file);
-});
+
+// === Empty state ===
+function updateEmptyState() {
+    const es = document.getElementById('empty-state');
+    if (es) es.style.display = (photos.length === 0 && parcels.length === 0) ? '' : 'none';
+}
+
+// === Modal helpers ===
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+// === Toast ===
+let _toastTimer;
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(_toastTimer);
+    _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// === Utils ===
+function uid(pfx) { return (pfx||'') + Math.random().toString(36).slice(2,9) + Date.now().toString(36).slice(-4); }
 function deg2card(d) { return ['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'][Math.round(d/22.5)%16]; }
-function fmtBytes(b) { if(b<1024)return b+' B'; if(b<1048576)return(b/1024).toFixed(1)+' KB'; return(b/1048576).toFixed(1)+' MB'; }
-function uid(p) { return `${p}_${Date.now()}_${Math.random().toString(36).slice(2,7)}`; }
-let toastT;
-function showToast(msg) { const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),3500); }
-document.addEventListener('keydown', e => { if(e.key==='Escape'&&!isPublishing){closePhotoModal();closeModal('settings-modal');closeModal('publish-modal');} if((e.key==='f'||e.key==='F')&&!e.target.closest('input,textarea'))fitAll(); });
+function fmtBytes(n) { if (n < 1024) return n + ' B'; if (n < 1048576) return (n/1024).toFixed(1) + ' KB'; return (n/1048576).toFixed(1) + ' MB'; }
 
-// Camera button — only show on touch devices
-if (!('ontouchstart' in window) && !navigator.maxTouchPoints) { document.getElementById('camera-btn').style.display = 'none'; }
+// === Keyboard shortcuts ===
+document.addEventListener('keydown', e => {
+    if (e.target.matches('input,textarea,select')) return;
+    if (e.key === 'f' || e.key === 'F') fitAll();
+    if (e.key === 'Escape') {
+        closePhotoModal();
+        closeModal('settings-modal');
+        closeModal('publish-modal');
+        _closeSugg();
+        if (findParcelMode) toggleFindParcel();
+    }
+});
 
-// PWA manifest
-(function() {
-    const icon = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%230f1117'/><rect x='8' y='8' width='84' height='84' rx='10' fill='none' stroke='%23f59e0b' stroke-width='7'/><rect x='24' y='24' width='52' height='52' rx='7' fill='none' stroke='%23f59e0b' stroke-width='4.5' opacity='0.55'/><rect x='40' y='40' width='20' height='20' rx='4' fill='none' stroke='%23f59e0b' stroke-width='2.5' opacity='0.3'/><circle cx='68' cy='32' r='11' fill='%23f59e0b'/><circle cx='68' cy='32' r='5.5' fill='%230f1117'/><line x1='68' y1='32' x2='86' y2='14' stroke='%23f59e0b' stroke-width='5' stroke-linecap='round'/></svg>`;
-    const manifest = { name:'LandSight', short_name:'LandSight', description:'Place drone and phone photos on a satellite parcel map', start_url:'./', display:'standalone', background_color:'#0f1117', theme_color:'#13161f', orientation:'any', icons:[{ src:`data:image/svg+xml,${icon}`, sizes:'any', type:'image/svg+xml', purpose:'any maskable' }] };
-    const blob = new Blob([JSON.stringify(manifest)], { type:'application/manifest+json' });
-    document.getElementById('pwa-manifest').href = URL.createObjectURL(blob);
-})();
+// === Drag & drop ===
+const _mc = document.getElementById('map-container');
+_mc.addEventListener('dragover', e => { e.preventDefault(); document.getElementById('drop-overlay').classList.add('active'); });
+_mc.addEventListener('dragleave', e => { if (!_mc.contains(e.relatedTarget)) document.getElementById('drop-overlay').classList.remove('active'); });
+_mc.addEventListener('drop', async e => {
+    e.preventDefault();
+    document.getElementById('drop-overlay').classList.remove('active');
+    const files = Array.from(e.dataTransfer.files);
+    const imgs = files.filter(f => f.type.startsWith('image/'));
+    const parcelFiles = files.filter(f => /\.(geojson|json|kml|kmz)$/i.test(f.name));
+    if (imgs.length) await processPhotoFiles(imgs);
+    for (const f of parcelFiles) await loadParcelFile(f);
+});
 
-renderSidebar();
+// Session file input (already in HTML but wired above via 'change')
+// Also allow dropping .lsmap onto the map
+_mc.addEventListener('drop', async e => {
+    const lsmap = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.lsmap'));
+    for (const f of lsmap) await _loadSessionFile(f);
+}, true);
+
+// === PWA manifest (dynamic, so no file needed) ===
+const _mf = { name: 'LandSight', short_name: 'LandSight', display: 'standalone', background_color: '#0f1117', theme_color: '#13161f', start_url: './' };
+const _mfBlob = new Blob([JSON.stringify(_mf)], { type: 'application/json' });
+const _mfEl = document.getElementById('pwa-manifest');
+if (_mfEl) _mfEl.href = URL.createObjectURL(_mfBlob);
+
+// Init
 updateEmptyState();
+renderSidebar();
 </script>
+</body>
+</html>
