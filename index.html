@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
-    <title>LandSight — Land Photo Mapper</title>
+    <title>LandSightMaps — Parcel &amp; Photo Mapping</title>
     <!-- PWA -->
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -11,12 +11,13 @@
     <meta name="apple-mobile-web-app-title" content="LandSight">
     <meta name="theme-color" content="#13161f">
     <link rel="manifest" id="pwa-manifest">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='512' height='512' viewBox='0 0 52 52' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='52' height='52' rx='11' fill='%230c111e'/%3E%3Crect x='6' y='6' width='40' height='40' rx='7' stroke='%23f59e0b' stroke-width='3.5'/%3E%3Crect x='14' y='14' width='24' height='24' rx='4' stroke='%23f59e0b' stroke-width='2' opacity='0.45'/%3E%3Ccircle cx='33' cy='19' r='5.5' fill='%233b82f6'/%3E%3Ccircle cx='33' cy='19' r='2.5' fill='%230c111e'/%3E%3Cline x1='33' y1='19' x2='43' y2='9' stroke='%233b82f6' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-        #header { background: #13161f; border-bottom: 1px solid #1e2235; padding: 10px 14px; display: flex; align-items: center; gap: 8px; z-index: 100; flex-shrink: 0; }
+        #header { background: #13161f; border-bottom: 1px solid #1e2235; border-left: 4px solid #3b82f6; padding: 10px 14px; display: flex; align-items: center; gap: 8px; z-index: 100; flex-shrink: 0; }
         #header-logo { color: #3b82f6; display: flex; align-items: center; flex-shrink: 0; }
         #header h1 { font-size: 16px; font-weight: 700; color: #f1f5f9; letter-spacing: -0.3px; white-space: nowrap; }
         #header-right { margin-left: auto; display: flex; align-items: center; gap: 6px; }
@@ -104,6 +105,13 @@
         #map-controls { position: absolute; bottom: 28px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
         .mc-btn { width: 34px; height: 34px; background: #13161f; border: 1px solid #1e2235; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; transition: all 0.15s; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
         .mc-btn:hover { background: #1a1e2e; color: #e2e8f0; border-color: #2a2f45; }
+        .mc-btn.locate-active { background: #0e3a8a; border-color: #3b82f6; color: #60a5fa; }
+        .mc-btn.locate-follow { background: #1d4ed8; border-color: #60a5fa; color: #fff; }
+        /* Pulsing GPS dot */
+        .gps-dot-wrap { position: relative; width: 20px; height: 20px; }
+        .gps-dot { width: 12px; height: 12px; background: #3b82f6; border: 2px solid #fff; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6px rgba(59,130,246,0.8); z-index: 2; }
+        .gps-pulse { width: 20px; height: 20px; background: rgba(59,130,246,0.3); border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); animation: gpsPulse 1.8s ease-out infinite; }
+        @keyframes gpsPulse { 0% { transform: translate(-50%,-50%) scale(0.5); opacity: 0.8; } 100% { transform: translate(-50%,-50%) scale(2.2); opacity: 0; } }
         #drop-overlay { position: absolute; inset: 0; background: rgba(29,78,216,0.12); border: 3px dashed #3b82f6; z-index: 999; display: none; align-items: center; justify-content: center; pointer-events: none; }
         #drop-overlay.active { display: flex; }
         #drop-inner { background: #13161f; border: 1px solid #2563eb; border-radius: 14px; padding: 20px 32px; text-align: center; }
@@ -137,8 +145,23 @@
         .btn-ghost:hover { background: #1e2235; color: #94a3b8; }
 
         #photo-modal .modal-box { max-width: 860px; max-height: 90vh; display: flex; flex-direction: column; overflow: hidden; }
-        #modal-img-wrap { flex-shrink: 0; background: #0a0c12; display: flex; align-items: center; justify-content: center; overflow: hidden; max-height: 52vh; }
-        #modal-img { max-width: 100%; max-height: 52vh; object-fit: contain; display: block; }
+        #modal-img-wrap { flex-shrink: 0; background: #0a0c12; display: flex; align-items: center; justify-content: center; overflow: hidden; max-height: 52vh; position: relative; }
+        #modal-img { max-width: 100%; max-height: 52vh; object-fit: contain; display: block; cursor: zoom-in; transition: opacity 0.12s; }
+        #modal-img:hover { opacity: 0.9; }
+        .modal-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.55); border: 1px solid rgba(255,255,255,0.15); color: #fff; font-size: 20px; line-height: 1; width: 38px; height: 38px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: background 0.15s, opacity 0.15s; z-index: 2; opacity: 0.7; }
+        .modal-nav-btn:hover { background: rgba(59,130,246,0.7); opacity: 1; }
+        .modal-nav-btn:disabled { opacity: 0.18; cursor: default; pointer-events: none; }
+        #modal-nav-prev { left: 8px; }
+        #modal-nav-next { right: 8px; }
+        #modal-photo-counter { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.55); color: #94a3b8; font-size: 11px; padding: 2px 8px; border-radius: 10px; pointer-events: none; white-space: nowrap; }
+
+        /* Fullscreen lightbox */
+        #fullscreen-viewer { display: none; position: fixed; inset: 0; z-index: 99999; background: rgba(0,0,0,0.96); align-items: center; justify-content: center; cursor: zoom-out; }
+        #fullscreen-viewer.open { display: flex; }
+        #fullscreen-img { max-width: 100vw; max-height: 100vh; object-fit: contain; display: block; user-select: none; pointer-events: none; }
+        #fullscreen-close { position: fixed; top: 16px; right: 20px; background: rgba(0,0,0,0.6); border: 1px solid #ffffff30; color: #fff; font-size: 22px; line-height: 1; padding: 6px 12px; border-radius: 8px; cursor: pointer; z-index: 100000; }
+        #fullscreen-close:hover { background: rgba(255,255,255,0.15); }
+        #fullscreen-hint { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); color: #ffffff60; font-size: 12px; pointer-events: none; }
         #modal-meta-wrap { padding: 16px 20px 20px; overflow-y: auto; }
         #modal-filename { font-size: 15px; font-weight: 700; color: #f1f5f9; margin-bottom: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         #modal-meta { display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr)); gap: 10px; }
@@ -335,15 +358,16 @@
 
 <div id="header">
     <div id="header-logo">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-linecap="round">
-            <rect x="2" y="2" width="20" height="20" rx="3" stroke="#f59e0b" stroke-width="2"/>
-            <rect x="6" y="6" width="12" height="12" rx="2" stroke="#f59e0b" stroke-width="1.3" opacity="0.55"/>
-            <circle cx="15.5" cy="8.5" r="2.8" fill="#f59e0b"/>
-            <circle cx="15.5" cy="8.5" r="1.3" fill="#13161f"/>
-            <line x1="15.5" y1="8.5" x2="20" y2="4" stroke="#f59e0b" stroke-width="1.6" stroke-linecap="round"/>
+        <svg width="26" height="26" viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <rect width="52" height="52" rx="11" fill="#0c111e"/>
+            <rect x="6" y="6" width="40" height="40" rx="7" stroke="#f59e0b" stroke-width="3.5"/>
+            <rect x="14" y="14" width="24" height="24" rx="4" stroke="#f59e0b" stroke-width="2" opacity="0.45"/>
+            <circle cx="33" cy="19" r="5.5" fill="#3b82f6"/>
+            <circle cx="33" cy="19" r="2.5" fill="#0c111e"/>
+            <line x1="33" y1="19" x2="43" y2="9" stroke="#3b82f6" stroke-width="2.8" stroke-linecap="round"/>
         </svg>
     </div>
-    <h1>LandSight</h1>
+    <h1>Land<span style="color:#f59e0b">Sight</span>Maps</h1>
     <div id="header-right">
         <button class="hbtn" onclick="fitAll()">⊡ Fit All</button>
         <button class="hbtn" id="labels-btn" onclick="toggleLabels()">Labels: On</button>
@@ -475,6 +499,9 @@
             <p>Add photos with GPS, load a parcel boundary, then publish a shareable link for clients.</p>
         </div>
         <div id="map-controls">
+            <div class="mc-btn" id="locate-btn" onclick="toggleLocate()" title="Track my location">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9" stroke-opacity="0.3"/></svg>
+            </div>
             <div class="mc-btn" onclick="fitAll()" title="Fit all (F)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
             </div>
@@ -482,11 +509,23 @@
     </div>
 </div>
 
+<!-- Fullscreen photo viewer -->
+<div id="fullscreen-viewer" onclick="closeFullscreenViewer()">
+    <button id="fullscreen-close" onclick="event.stopPropagation();closeFullscreenViewer()">✕</button>
+    <img id="fullscreen-img" src="" alt="">
+    <div id="fullscreen-hint">Tap anywhere or press Esc to close</div>
+</div>
+
 <!-- Photo modal -->
 <div id="photo-modal" class="modal-overlay" onclick="if(event.target===this)closePhotoModal()">
     <div class="modal-box">
         <button class="modal-close-x" style="position:absolute;top:14px;right:14px;z-index:1" onclick="closePhotoModal()">✕</button>
-        <div id="modal-img-wrap"><img id="modal-img" src="" alt=""></div>
+        <div id="modal-img-wrap">
+            <button class="modal-nav-btn" id="modal-nav-prev" onclick="navPhoto(-1)" title="Previous photo (←)">&#8249;</button>
+            <img id="modal-img" src="" alt="" onclick="openFullscreenViewer()" title="Click to view fullscreen">
+            <button class="modal-nav-btn" id="modal-nav-next" onclick="navPhoto(1)" title="Next photo (→)">&#8250;</button>
+            <div id="modal-photo-counter"></div>
+        </div>
         <div id="modal-meta-wrap">
             <div id="modal-filename"></div>
             <div id="modal-meta"></div>
@@ -501,6 +540,7 @@
             </div>
             <div id="modal-actions">
                 <button class="modal-act-btn" onclick="goToPhoto()">📍 Go to on map</button>
+                <button class="modal-act-btn" id="move-photo-btn" onclick="startMovePhoto()" style="color:#f59e0b;border-color:#78350f">✥ Move pin</button>
                 <button class="modal-act-btn danger" onclick="removePhoto()">✕ Remove</button>
             </div>
         </div>
@@ -834,11 +874,36 @@ function renderSidebar() {
 }
 function sidebarPhoto(id) { activeSidebarId = id; renderSidebar(); const p = photos.find(x=>x.id===id); if (p?.hasGps) map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),18), { duration:0.7 }); }
 
+function navPhoto(dir) {
+    const idx = photos.findIndex(x => x.id === activeModalId);
+    if (idx === -1) return;
+    const next = idx + dir;
+    if (next < 0 || next >= photos.length) return;
+    openPhotoModal(photos[next].id);
+}
+
+function _updateModalNav() {
+    const idx = photos.findIndex(x => x.id === activeModalId);
+    const total = photos.length;
+    const prev = document.getElementById('modal-nav-prev');
+    const next = document.getElementById('modal-nav-next');
+    const counter = document.getElementById('modal-photo-counter');
+    if (total <= 1) {
+        prev.style.display = 'none'; next.style.display = 'none'; counter.style.display = 'none';
+    } else {
+        prev.style.display = ''; next.style.display = ''; counter.style.display = '';
+        prev.disabled = idx <= 0;
+        next.disabled = idx >= total - 1;
+        counter.textContent = `${idx + 1} / ${total}`;
+    }
+}
+
 function openPhotoModal(id) {
     const p = photos.find(x => x.id===id); if (!p) return;
     activeModalId = id; activeSidebarId = id; renderSidebar();
     document.getElementById('modal-img').src = p.objUrl;
     document.getElementById('modal-filename').textContent = p.name;
+    _updateModalNav();
     let altTxt = 'Unknown';
     if (p.relAlt !== null) altTxt = `${parseFloat(p.relAlt).toFixed(1)} m AGL`;
     else if (p.altitude !== null) altTxt = `${Math.round(p.altitude)} m ASL`;
@@ -854,6 +919,17 @@ function openPhotoModal(id) {
     setupCompass(p.heading);
 }
 function closePhotoModal() { document.getElementById('photo-modal').classList.remove('open'); activeModalId = null; }
+
+function openFullscreenViewer() {
+    const src = document.getElementById('modal-img').src;
+    if (!src) return;
+    document.getElementById('fullscreen-img').src = src;
+    document.getElementById('fullscreen-viewer').classList.add('open');
+}
+function closeFullscreenViewer() {
+    document.getElementById('fullscreen-viewer').classList.remove('open');
+    document.getElementById('fullscreen-img').src = '';
+}
 
 function drawCompass(heading) {
     const canvas = document.getElementById('compass-canvas');
@@ -1447,6 +1523,53 @@ function toggleFindParcel() {
     if (fab) fab.classList.toggle('active', findParcelMode);
 }
 
+// === Move photo pin ===
+let _movePhotoId = null;
+
+function startMovePhoto() {
+    const id = activeModalId;
+    if (!id) return;
+    const p = photos.find(x => x.id === id);
+    if (!p) return;
+    closePhotoModal();
+    _movePhotoId = id;
+    if (findParcelMode) toggleFindParcel(); // cancel any other tap mode
+    document.getElementById('find-banner').textContent = `✥ Tap map to drop "${p.name.length > 24 ? p.name.slice(0,24)+'…' : p.name}"`;
+    document.getElementById('find-banner').classList.add('show');
+    document.getElementById('map').classList.add('find-mode');
+    showToast('Tap the map to set the new position');
+}
+
+function _cancelMovePhoto() {
+    _movePhotoId = null;
+    document.getElementById('find-banner').textContent = '📍 Tap your property to load its parcel';
+    document.getElementById('find-banner').classList.remove('show');
+    document.getElementById('map').classList.remove('find-mode');
+}
+
+map.on('click', (e) => {
+    if (!_movePhotoId) return;
+    const { lat, lng } = e.latlng;
+    const p = photos.find(x => x.id === _movePhotoId);
+    if (p) {
+        const wasGps = p.hasGps;
+        p.lat = lat; p.lng = lng; p.hasGps = true;
+        if (leafletMarkers[p.id]) {
+            leafletMarkers[p.id].setLatLng([lat, lng]);
+            leafletMarkers[p.id].setIcon(buildPhotoIcon(p));
+        } else {
+            // Photo had no GPS before — add a marker for the first time
+            addPhotoMarker(p);
+        }
+        renderSidebar(); updateEmptyState();
+        showToast(`Pin moved · ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+    }
+    _cancelMovePhoto();
+});
+
+// Cancel move mode with Escape (already handled in keydown, but also cancel on map rightclick)
+map.on('contextmenu', () => { if (_movePhotoId) { _cancelMovePhoto(); showToast('Move cancelled'); } });
+
 map.on('click', async (e) => {
     if (!findParcelMode) return;
     toggleFindParcel();
@@ -1576,7 +1699,10 @@ function fmtBytes(n) { if (n < 1024) return n + ' B'; if (n < 1048576) return (n
 document.addEventListener('keydown', e => {
     if (e.target.matches('input,textarea,select')) return;
     if (e.key === 'f' || e.key === 'F') fitAll();
+    if (e.key === 'ArrowLeft'  && activeModalId) { e.preventDefault(); navPhoto(-1); }
+    if (e.key === 'ArrowRight' && activeModalId) { e.preventDefault(); navPhoto(1);  }
     if (e.key === 'Escape') {
+        if (document.getElementById('fullscreen-viewer').classList.contains('open')) { closeFullscreenViewer(); return; }
         closePhotoModal();
         closeModal('settings-modal');
         closeModal('publish-modal');
@@ -1611,6 +1737,85 @@ const _mf = { name: 'LandSight', short_name: 'LandSight', display: 'standalone',
 const _mfBlob = new Blob([JSON.stringify(_mf)], { type: 'application/json' });
 const _mfEl = document.getElementById('pwa-manifest');
 if (_mfEl) _mfEl.href = URL.createObjectURL(_mfBlob);
+
+// === Real-time GPS tracking ===
+let _locateWatchId = null, _locateMarker = null, _locateCircle = null, _locateFollow = false;
+
+function toggleLocate() {
+    if (_locateWatchId !== null) {
+        // If already tracking — first tap switches to follow mode, second tap stops
+        if (!_locateFollow) {
+            _locateFollow = true;
+            document.getElementById('locate-btn').classList.add('locate-follow');
+            if (_locateMarker) map.setView(_locateMarker.getLatLng(), Math.max(map.getZoom(), 17));
+            showToast('Following your location');
+        } else {
+            _stopLocate();
+            showToast('Location tracking off');
+        }
+        return;
+    }
+    if (!navigator.geolocation) { showToast('GPS not available on this device'); return; }
+    showToast('Finding your location…');
+    _locateFollow = true;
+    document.getElementById('locate-btn').classList.add('locate-active');
+    _locateWatchId = navigator.geolocation.watchPosition(
+        _onLocate,
+        _onLocateErr,
+        { enableHighAccuracy: true, maximumAge: 2000, timeout: 10000 }
+    );
+}
+
+function _onLocate(pos) {
+    const { latitude: lat, longitude: lng, accuracy } = pos.coords;
+    const latlng = [lat, lng];
+
+    // Create or update the pulsing dot marker
+    if (!_locateMarker) {
+        const icon = L.divIcon({
+            className: '',
+            html: '<div class="gps-dot-wrap"><div class="gps-pulse"></div><div class="gps-dot"></div></div>',
+            iconSize: [20, 20], iconAnchor: [10, 10]
+        });
+        _locateMarker = L.marker(latlng, { icon, zIndexOffset: 1000, interactive: false }).addTo(map);
+        _locateCircle = L.circle(latlng, {
+            radius: accuracy, color: '#3b82f6', fillColor: '#3b82f6',
+            fillOpacity: 0.08, weight: 1, opacity: 0.4, interactive: false
+        }).addTo(map);
+        document.getElementById('locate-btn').classList.remove('locate-active');
+        document.getElementById('locate-btn').classList.add('locate-follow');
+        showToast(`Location found · ±${Math.round(accuracy)} m`);
+    } else {
+        _locateMarker.setLatLng(latlng);
+        _locateCircle.setLatLng(latlng).setRadius(accuracy);
+    }
+
+    if (_locateFollow) map.setView(latlng, Math.max(map.getZoom(), 17));
+}
+
+function _onLocateErr(err) {
+    _stopLocate();
+    const msgs = { 1: 'Location permission denied', 2: 'Location unavailable', 3: 'Location timed out' };
+    showToast(msgs[err.code] || 'Could not get location');
+}
+
+function _stopLocate() {
+    if (_locateWatchId !== null) { navigator.geolocation.clearWatch(_locateWatchId); _locateWatchId = null; }
+    if (_locateMarker) { map.removeLayer(_locateMarker); _locateMarker = null; }
+    if (_locateCircle) { map.removeLayer(_locateCircle); _locateCircle = null; }
+    _locateFollow = false;
+    const btn = document.getElementById('locate-btn');
+    btn.classList.remove('locate-active', 'locate-follow');
+}
+
+// Stop follow mode if user pans the map manually
+map.on('dragstart', () => {
+    if (_locateWatchId !== null && _locateFollow) {
+        _locateFollow = false;
+        document.getElementById('locate-btn').classList.remove('locate-follow');
+        document.getElementById('locate-btn').classList.add('locate-active');
+    }
+});
 
 // Init
 updateEmptyState();
