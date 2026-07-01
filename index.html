@@ -1115,7 +1115,7 @@ async function startPublish() {
         setPublishProgress('📸', 'Resizing photos…', 15);
         const photoMeta = [], photoDataUrls = {};
         for (const photo of photos) {
-            const jpegBlob = await resizeToJpeg(photo.file, 900);
+            const jpegBlob = await resizeToJpeg(photo.file, 1920);
             const safeName = photo.name.replace(/[^a-zA-Z0-9._-]/g,'_').replace(/\.[^.]+$/,'') + '.jpg';
             const dataUrl = await new Promise(res => { const r = new FileReader(); r.onload = e => res(e.target.result); r.readAsDataURL(jpegBlob); });
             photoDataUrls[safeName] = dataUrl;
@@ -1251,7 +1251,7 @@ function resizeToJpeg(file, maxPx) {
             const canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-            canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/jpeg', 0.82);
+            canvas.toBlob(b => b ? resolve(b) : reject(new Error('toBlob failed')), 'image/jpeg', 0.90);
             URL.revokeObjectURL(img.src);
         };
         img.onerror = reject;
@@ -1282,29 +1282,18 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
 #hdr-right{margin-left:auto;font-size:10px;color:#2e3550;flex-shrink:0}
 #map{flex:1;min-height:0;width:100%;touch-action:pan-x pan-y}
 /* Lightbox */
-#lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:9999;display:none;flex-direction:column;align-items:stretch;justify-content:flex-end;padding-bottom:env(safe-area-inset-bottom)}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:9999;display:none;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:50px 12px 16px}
 #lightbox.open{display:flex}
-#lb-box{background:#13161f;border-radius:20px 20px 0 0;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
-#lb-drag{width:36px;height:4px;background:#2a2f45;border-radius:2px;margin:10px auto 6px}
-#lb-img-wrap{background:#0a0c12;display:flex;align-items:center;justify-content:center;max-height:42vh;overflow:hidden;flex-shrink:0;position:relative}
-.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:22px;width:36px;height:36px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;opacity:0.8;padding:0;line-height:1}
+#lb-close{position:absolute;top:14px;right:16px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);color:#fff;width:34px;height:34px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;z-index:2}
+#lb-close:hover{background:rgba(255,255,255,0.18)}
+#lb-img-wrap{width:100%;flex:1;display:flex;align-items:center;justify-content:center;position:relative;min-height:0}
+.lb-nav{position:absolute;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.5);border:1px solid rgba(255,255,255,0.15);color:#fff;font-size:26px;width:40px;height:40px;border-radius:50%;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:2;opacity:0.75;padding:0;line-height:1}
+.lb-nav:hover{opacity:1;background:rgba(59,130,246,0.6)}
 .lb-nav:disabled{opacity:0.15;cursor:default;pointer-events:none}
 #lb-nav-prev{left:8px}
 #lb-nav-next{right:8px}
-#lb-counter{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.55);color:#94a3b8;font-size:10px;padding:2px 7px;border-radius:8px;pointer-events:none;white-space:nowrap}
-#fs-view{display:none;position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,0.97);align-items:center;justify-content:center;cursor:zoom-out}
-#fs-view.open{display:flex}
-#fs-img{max-width:100vw;max-height:100vh;object-fit:contain;pointer-events:none}
-#fs-close{position:fixed;top:14px;right:16px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);color:#fff;font-size:20px;padding:5px 11px;border-radius:7px;cursor:pointer;z-index:100000}
-#lb-body{padding:14px 18px 20px;overflow-y:auto;-webkit-overflow-scrolling:touch}
-#lb-name{font-size:14px;font-weight:700;color:#f1f5f9;margin-bottom:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#lb-close-row{display:flex;justify-content:flex-end;padding:4px 12px 0}
-#lb-close{background:#1e2235;border:1px solid #2a2f45;color:#94a3b8;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
-#lb-meta{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px}
-.lm{background:#0f1117;border:1px solid #1e2235;border-radius:7px;padding:9px 11px}
-.lml{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:3px}
-.lmv{font-size:12px;color:#e2e8f0;font-weight:500}
-.lmv.g{color:#4ade80}.lmv.w{color:#f59e0b}
+#lb-counter{position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.5);color:#94a3b8;font-size:10px;padding:2px 8px;border-radius:8px;pointer-events:none;white-space:nowrap}
+#lb-name{color:#64748b;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90vw;text-align:center;flex-shrink:0}
 .leaflet-container{background:#0a0c12}
 .leaflet-control-zoom{border:none!important;box-shadow:none!important}
 .leaflet-control-zoom a{background:#13161f!important;color:#94a3b8!important;border-color:#1e2235!important;width:34px!important;height:34px!important;line-height:34px!important;font-size:18px!important}
@@ -1323,20 +1312,17 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
   </div>
   <div id="map"></div>
 </div>
-<div id="lightbox">
-  <div id="lb-box">
-    <div id="lb-close-row"><button id="lb-close" onclick="closeLb()">✕</button></div>
-    <div id="lb-drag"></div>
-    <div id="lb-img-wrap">
-      <button class="lb-nav" id="lb-nav-prev" onclick="navLb(-1)">&#8249;</button>
-      <div id="lb-img-tap" style="display:flex;align-items:center;justify-content:center;flex:1;cursor:zoom-in;touch-action:manipulation;-webkit-tap-highlight-color:transparent">
-        <img id="lb-img" src="" alt="" style="max-width:100%;max-height:42vh;object-fit:contain;display:block;pointer-events:none">
-      </div>
-      <button class="lb-nav" id="lb-nav-next" onclick="navLb(1)">&#8250;</button>
-      <div id="lb-counter"></div>
+<div id="lightbox" onclick="if(event.target===this)closeLb()">
+  <button id="lb-close" onclick="closeLb()">✕</button>
+  <div id="lb-img-wrap">
+    <button class="lb-nav" id="lb-nav-prev" onclick="navLb(-1)">&#8249;</button>
+    <div id="lb-img-tap" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;cursor:zoom-in;touch-action:manipulation;-webkit-tap-highlight-color:transparent">
+      <img id="lb-img" src="" alt="" style="max-width:100%;max-height:100%;object-fit:contain;display:block;pointer-events:none">
     </div>
-    <div id="lb-body"><div id="lb-name"></div><div id="lb-meta"></div></div>
+    <button class="lb-nav" id="lb-nav-next" onclick="navLb(1)">&#8250;</button>
+    <div id="lb-counter"></div>
   </div>
+  <div id="lb-name"></div>
 </div>
 <div id="fs-view" onclick="closeFsView()">
   <button id="fs-close" onclick="event.stopPropagation();closeFsView()">✕</button>
@@ -1371,16 +1357,6 @@ function _renderLb(){
   if(!p)return;
   document.getElementById('lb-img').src=p.src;
   document.getElementById('lb-name').textContent=p.filename;
-  let altTxt='Unknown';
-  if(p.relAlt!=null)altTxt=parseFloat(p.relAlt).toFixed(1)+' m AGL';
-  else if(p.altitude!=null)altTxt=Math.round(p.altitude)+' m ASL';
-  document.getElementById('lb-meta').innerHTML=[
-    {l:'GPS',v:p.hasGps?p.lat.toFixed(6)+', '+p.lng.toFixed(6):'No GPS',c:p.hasGps?'g':'w'},
-    {l:'Heading',v:p.heading!=null?Math.round(p.heading)+'° '+deg2card(p.heading):'N/A'},
-    {l:'Altitude',v:altTxt},
-    {l:'Captured',v:p.datetime?new Date(p.datetime).toLocaleString():'Unknown'},
-    {l:'Camera',v:[p.make,p.model].filter(Boolean).join(' ')||'Unknown'}
-  ].map(m=>'<div class="lm"><div class="lml">'+m.l+'</div><div class="lmv '+(m.c||'')+'">'+m.v+'</div></div>').join('');
   const total=_gphotos.length;
   const prev=document.getElementById('lb-nav-prev');
   const next=document.getElementById('lb-nav-next');
@@ -1403,7 +1379,6 @@ function openFsView(){
 function closeFsView(){document.getElementById('fs-view').classList.remove('open');document.getElementById('fs-img').src='';}
 document.getElementById('lb-img-tap').addEventListener('click',openFsView);
 document.getElementById('lb-img-tap').addEventListener('touchend',function(e){e.preventDefault();openFsView();});
-document.getElementById('lightbox').addEventListener('click',e=>{if(e.target===document.getElementById('lightbox'))closeLb();});
 document.addEventListener('keydown',e=>{
   if(e.key==='Escape'){if(document.getElementById('fs-view').classList.contains('open')){closeFsView();return;}closeLb();}
   if(e.key==='ArrowLeft')navLb(-1);
