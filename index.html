@@ -145,6 +145,8 @@
         .mc-btn:hover { background: #1a1e2e; color: #e2e8f0; border-color: #2a2f45; }
         .mc-btn.locate-active { background: #0e3a8a; border-color: #3b82f6; color: #60a5fa; }
         .mc-btn.locate-follow { background: #1d4ed8; border-color: #60a5fa; color: #fff; }
+        .mc-btn.browse-active { background: #064e3b; border-color: #10b981; color: #34d399; }
+        #browse-badge { display:none; position:absolute; bottom:28px; left:50%; transform:translateX(-50%); z-index:999; background:#0f1117; border:1px solid #2a2f45; border-radius:20px; padding:5px 14px; font-size:11px; font-weight:600; color:#94a3b8; white-space:nowrap; pointer-events:none; box-shadow:0 2px 10px rgba(0,0,0,0.5); transition:background 0.2s,color 0.2s; }
         /* Pulsing GPS dot */
         .gps-dot-wrap { position: relative; width: 20px; height: 20px; }
         .gps-dot { width: 12px; height: 12px; background: #3b82f6; border: 2px solid #fff; border-radius: 50%; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); box-shadow: 0 0 6px rgba(59,130,246,0.8); z-index: 2; }
@@ -359,8 +361,11 @@
             #photo-list { max-height: 180px; overflow-y: auto; }
             #parcel-list { max-height: 120px; }
 
-            /* Map controls — shift up so not hidden behind sheet */
-            #map-controls { bottom: 72px; right: 12px; transition: bottom 0.35s cubic-bezier(0.32,0.72,0,1); }
+            /* Hide GIS downloads on mobile */
+            #county-section { display: none; }
+
+            /* Map controls — move to left on mobile so FABs have the right side */
+            #map-controls { bottom: 72px; right: auto; left: 12px; transition: bottom 0.35s cubic-bezier(0.32,0.72,0,1); }
             #sidebar.sheet-open ~ #map-container #map-controls { bottom: calc(72vh + 12px); }
 
 
@@ -537,7 +542,11 @@
             <h3>No photos yet</h3>
             <p>Add photos with GPS, load a parcel boundary, then publish a shareable link for clients.</p>
         </div>
+        <div id="browse-badge"></div>
         <div id="map-controls">
+            <div class="mc-btn" id="browse-btn" onclick="toggleBrowseMode()" title="Browse all parcels">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+            </div>
             <div class="mc-btn" id="clear-route-btn" onclick="clearRoute()" title="Clear route" style="display:none;color:#f87171;border-color:#7f1d1d;background:#1c0a0a;width:auto;padding:0 10px;font-size:11px;font-weight:600;gap:4px">
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 Route
@@ -1905,17 +1914,40 @@ function searchParcel() {
 
 document.addEventListener('click', e => { if (!e.target.closest('#parcel-search-box')) _closeSugg(); });
 
-// === County parcel services ===
+// === Parcel services — verified public ArcGIS endpoints ===
+// Each entry: name (display), url (ArcGIS FeatureServer/0 query endpoint), apnField, bbox
 const COUNTY_SERVICES = [
-    { name:'Placer',     url:'https://services6.arcgis.com/PArfeTGcwA9RGNzN/arcgis/rest/services/Public_Parcels/FeatureServer/4',                                                                              apnField:'APN',             bbox:{ s:38.73, n:39.32, w:-121.50, e:-120.00 } },
-    { name:'Sacramento', url:'https://services1.arcgis.com/5NARefyPVtAeuJPU/arcgis/rest/services/Parcels/FeatureServer/0',                                                                                     apnField:'APN',             bbox:{ s:38.02, n:38.74, w:-121.86, e:-121.02 } },
-    { name:'El Dorado',  url:'https://services.arcgis.com/UHg8l1wC48WQyDSO/arcgis/rest/services/ParcelBase/FeatureServer/0',                                                                                   apnField:'PRCL_12DIGIT',    bbox:{ s:38.52, n:39.07, w:-121.01, e:-119.88 } },
-    { name:'Nevada',     url:'https://maps.nevadacountyca.gov/arcgis/rest/services/web_public/Open_Data_Layers_Nevada_County_1/FeatureServer/200',                                                              apnField:'APN',             bbox:{ s:39.07, n:39.47, w:-121.26, e:-120.00 } },
-    { name:'Yolo',       url:'https://services2.arcgis.com/RETsakmE0SJfZXCd/arcgis/rest/services/Yolo_County_Tax_Parcels_Open_Data_/FeatureServer/0',                                                          apnField:'MPTS_ASMT_NUMBER',bbox:{ s:38.40, n:38.94, w:-122.41, e:-121.59 } },
+    // ── California — verified county services ──
+    { name:'Placer Co.',      url:'https://services6.arcgis.com/PArfeTGcwA9RGNzN/arcgis/rest/services/Public_Parcels/FeatureServer/4',                                                            apnField:'APN',              bbox:{ s:38.73, n:39.32, w:-121.50, e:-120.00 } },
+    { name:'Sacramento Co.',  url:'https://services1.arcgis.com/5NARefyPVtAeuJPU/arcgis/rest/services/Parcels/FeatureServer/0',                                                                   apnField:'APN',              bbox:{ s:38.02, n:38.74, w:-121.86, e:-121.02 } },
+    { name:'El Dorado Co.',   url:'https://services.arcgis.com/UHg8l1wC48WQyDSO/arcgis/rest/services/ParcelBase/FeatureServer/0',                                                                 apnField:'PRCL_12DIGIT',     bbox:{ s:38.52, n:39.07, w:-121.01, e:-119.88 } },
+    { name:'Nevada Co.',      url:'https://maps.nevadacountyca.gov/arcgis/rest/services/web_public/Open_Data_Layers_Nevada_County_1/FeatureServer/200',                                            apnField:'APN',              bbox:{ s:39.07, n:39.47, w:-121.26, e:-120.00 } },
+    { name:'Yolo Co.',        url:'https://services2.arcgis.com/RETsakmE0SJfZXCd/arcgis/rest/services/Yolo_County_Tax_Parcels_Open_Data_/FeatureServer/0',                                        apnField:'MPTS_ASMT_NUMBER', bbox:{ s:38.40, n:38.94, w:-122.41, e:-121.59 } },
+    { name:'Stanislaus Co.',  url:'https://services7.arcgis.com/LzNRhY1Mwzur62hA/arcgis/rest/services/Parcel_Data/FeatureServer/0',                                                               apnField:'APN',              bbox:{ s:37.25, n:37.92, w:-121.19, e:-120.28 } },
+
+    // ── California Bay Area — verified county services ──
+    { name:'Sonoma Co.',      url:'https://socogis.sonomacounty.ca.gov/map/rest/services/AGCOMMPublic/Sonoma_County_Parcels/FeatureServer/0',                                                     apnField:'APN',              bbox:{ s:38.12, n:38.86, w:-123.53, e:-122.35 } },
+    { name:'Marin Co.',       url:'https://gis.marincounty.gov/server/rest/services/PARCEL_BASED/PARCEL/FeatureServer/0',                                                                         apnField:'Prop_ID',          bbox:{ s:37.85, n:38.86, w:-123.01, e:-122.36 } },
+    { name:'San Mateo Co.',   url:'https://gis.smcgov.org/maps/rest/services/PLANNING/COUNTY_PARCELS/FeatureServer/0',                                                                            apnField:'APN',              bbox:{ s:37.18, n:37.71, w:-122.52, e:-122.08 } },
+    { name:'Alameda Co.',     url:'https://services5.arcgis.com/ROBnTHSNjoZ2Wm1P/arcgis/rest/services/Parcels/FeatureServer/0',                                                                   apnField:'APN',              bbox:{ s:37.45, n:37.91, w:-122.37, e:-121.47 } },
+    { name:'Santa Clara Co.', url:'https://mapservices.sccgov.org/arcgis/rest/services/property/SCCProperty/MapServer/1',                                                                         apnField:'APN',              bbox:{ s:36.89, n:37.48, w:-122.20, e:-121.21 } },
+    { name:'Contra Costa Co.',url:'https://gis.cccounty.us/arcgis/rest/services/CCMAP/Assessment_Parcels_ArcPro/MapServer/0',                                                                    apnField:'APN',              bbox:{ s:37.72, n:38.10, w:-122.44, e:-121.53 } },
+
+    // ── Florida (statewide — verified) ──
+    { name:'Florida',         url:'https://services9.arcgis.com/Gh9awoU677aKree0/arcgis/rest/services/Florida_Statewide_Cadastral/FeatureServer/0',                                               apnField:'PARCEL_ID',        bbox:{ s:24.40, n:31.00, w:-87.63, e:-79.97 } },
+
+    // ── Colorado (statewide — verified) ──
+    { name:'Colorado',        url:'https://gis.colorado.gov/public/rest/services/Address_and_Parcel/Colorado_Public_Parcels/FeatureServer/0',                                                     apnField:'APN',              bbox:{ s:36.99, n:41.00, w:-109.05, e:-102.05 } },
+
+    // ── Wisconsin (statewide — verified) ──
+    { name:'Wisconsin',       url:'https://services3.arcgis.com/n6uYoouQZW75n5WI/arcgis/rest/services/Wisconsin_Statewide_Parcels/FeatureServer/0',                                               apnField:'PARCELID',         bbox:{ s:42.49, n:47.08, w:-92.89, e:-86.25 } },
+
+    // ── North Carolina (statewide) ──
+    { name:'North Carolina',  url:'https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/FeatureServer/1',                                                                             apnField:'PARNO',            bbox:{ s:33.84, n:36.59, w:-84.32, e:-75.40 } },
 ];
 
 function _getApn(props, apnField) {
-    const candidates = [apnField,'APN','PARCELID','PARCEL_ID','PRCL_12DIGIT','MPTS_ASMT_NUMBER','PRCL_ID'];
+    const candidates = [apnField,'APN','Prop_ID','PARCELID','PARCEL_ID','PRCL_12DIGIT','MPTS_ASMT_NUMBER','PRCL_ID','PARNO','CO_NO_RE_NO','PIN','PARID','TAX_ID','TAXKEY'];
     for (const f of candidates) { if (props[f]) return String(props[f]).trim(); }
     return null;
 }
@@ -2316,6 +2348,161 @@ function _stopLocate() {
     const btn = document.getElementById('locate-btn');
     btn.classList.remove('locate-active', 'locate-follow');
 }
+
+// === Parcel Browse Mode ===
+let browseModeActive = false;
+let _browseLayer = null;
+let _browseLoading = false;
+let _browseTimer = null;
+const _browseFeatureCache = {}; // id → feature, avoids passing JSON through onclick
+
+function toggleBrowseMode() {
+    browseModeActive = !browseModeActive;
+    const btn = document.getElementById('browse-btn');
+    const badge = document.getElementById('browse-badge');
+    if (browseModeActive) {
+        btn.classList.add('browse-active');
+        btn.title = 'Exit browse mode';
+        badge.style.display = 'block';
+        _loadBrowseParcels();
+    } else {
+        btn.classList.remove('browse-active');
+        btn.title = 'Browse all parcels';
+        badge.style.display = 'none';
+        if (_browseLayer) { map.removeLayer(_browseLayer); _browseLayer = null; }
+    }
+}
+
+function _debouncedBrowse() {
+    if (!browseModeActive) return;
+    clearTimeout(_browseTimer);
+    _browseTimer = setTimeout(_loadBrowseParcels, 500);
+}
+
+async function _loadBrowseParcels() {
+    if (!browseModeActive || _browseLoading) return;
+    const badge = document.getElementById('browse-badge');
+    const zoom = map.getZoom();
+
+    if (zoom < 13) {
+        badge.style.background = '#1e2235';
+        badge.style.color = '#64748b';
+        badge.textContent = '🔍 Zoom in to see parcel boundaries';
+        if (_browseLayer) { map.removeLayer(_browseLayer); _browseLayer = null; }
+        return;
+    }
+
+    const bounds = map.getBounds();
+    const matchedServices = COUNTY_SERVICES.filter(s =>
+        !(bounds.getSouth() > s.bbox.n || bounds.getNorth() < s.bbox.s ||
+          bounds.getWest()  > s.bbox.e || bounds.getEast()  < s.bbox.w)
+    );
+
+    if (matchedServices.length === 0) {
+        badge.style.background = '#1f0a0a';
+        badge.style.color = '#f87171';
+        badge.textContent = '⚠️ No parcel data for this area';
+        if (_browseLayer) { map.removeLayer(_browseLayer); _browseLayer = null; }
+        return;
+    }
+
+    _browseLoading = true;
+    badge.style.background = '#0e3a8a';
+    badge.style.color = '#60a5fa';
+    badge.textContent = '⏳ Loading parcels…';
+
+    const geometry = JSON.stringify({
+        xmin: bounds.getWest(), ymin: bounds.getSouth(),
+        xmax: bounds.getEast(), ymax: bounds.getNorth(),
+        spatialReference: { wkid: 4326 }
+    });
+
+    try {
+        const results = await Promise.all(matchedServices.map(svc =>
+            _jsonpFetch(svc.url + '/query', {
+                geometry,
+                geometryType: 'esriGeometryEnvelope',
+                spatialRel: 'esriSpatialRelIntersects',
+                outFields: '*',
+                returnGeometry: true,
+                outSR: 4326,
+                resultRecordCount: 300,
+            }).then(data => ({ data, svc })).catch(() => null)
+        ));
+
+        const allFeatures = [];
+        const countiesLoaded = [];
+        results.forEach(r => {
+            if (!r) return;
+            const gj = _esriToGeoJSON(r.data);
+            if (gj && gj.features.length) {
+                allFeatures.push(...gj.features);
+                countiesLoaded.push(r.svc.name);
+            }
+        });
+
+        if (_browseLayer) { map.removeLayer(_browseLayer); _browseLayer = null; }
+
+        if (allFeatures.length > 0) {
+            _browseLayer = L.geoJSON({ type: 'FeatureCollection', features: allFeatures }, {
+                style: () => ({ color: '#10b981', weight: 1.2, opacity: 0.75, fillOpacity: 0.04, fillColor: '#10b981' }),
+                onEachFeature: (feat, lyr) => {
+                    const p = feat.properties || {};
+                    const apn = p.APN || p.PRCL_12DIGIT || p.MPTS_ASMT_NUMBER || '—';
+                    const addr = p.ADDR || p.ADDRESS || p.SITUS_ADDR || p.SITUS_ADDRESS || p.SITE_ADDR || '';
+                    const acres = p.ACRES || p.GIS_ACRES || p.PARCEL_AREA || '';
+                    const cacheId = uid('bf');
+                    _browseFeatureCache[cacheId] = feat;
+                    lyr.bindPopup(`
+                        <div style="min-width:170px;font-size:12px">
+                            <div style="font-weight:700;color:#10b981;margin-bottom:6px">📦 APN: ${apn}</div>
+                            ${addr ? `<div style="color:#94a3b8;font-size:11px;margin-bottom:3px">📍 ${addr}</div>` : ''}
+                            ${acres ? `<div style="color:#94a3b8;font-size:11px">📐 ${parseFloat(acres).toFixed(2)} acres</div>` : ''}
+                            <hr style="border-color:#1e2235;margin:8px 0">
+                            <button onclick="_browseLoadParcel('${cacheId}')" style="width:100%;padding:6px;background:#064e3b;border:1px solid #10b981;color:#34d399;border-radius:6px;font-size:11px;cursor:pointer;font-weight:600">＋ Add to My Parcels</button>
+                        </div>
+                    `, { maxWidth: 240 });
+                }
+            }).addTo(map);
+            badge.style.background = '#064e3b';
+            badge.style.color = '#34d399';
+            badge.textContent = `✓ ${countiesLoaded.join(' · ')} — ${allFeatures.length} parcels`;
+        } else {
+            badge.style.background = '#1e2235';
+            badge.style.color = '#64748b';
+            badge.textContent = 'No parcels found in view';
+        }
+    } catch(e) {
+        badge.style.background = '#1f0a0a';
+        badge.style.color = '#f87171';
+        badge.textContent = 'Failed to load parcels';
+    } finally {
+        _browseLoading = false;
+    }
+}
+
+function _browseLoadParcel(cacheId) {
+    try {
+        const feat = _browseFeatureCache[cacheId];
+        if (!feat) { showToast('Feature not found'); return; }
+        const gj = { type: 'FeatureCollection', features: [feat] };
+        const p = feat.properties || {};
+        const name = p.APN || p.PRCL_12DIGIT || p.MPTS_ASMT_NUMBER || 'Parcel';
+        const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
+        const layer = L.geoJSON(gj, {
+            style: () => ({ color, weight: 2.5, opacity: 0.95, fillColor: color, fillOpacity: 0.10 }),
+            onEachFeature: (feature, lyr) => {
+                lyr.on('click', () => { lyr.setStyle({ fillOpacity:0.25, weight:3.5 }); setTimeout(() => lyr.setStyle({ fillOpacity:0.10, weight:2.5 }), 600); });
+            }
+        }).addTo(map);
+        parcels.push({ id: uid('par'), name, color, layer, geojson: gj, visible: true, featureCount: 1 });
+        renderSidebar(); updateEmptyState();
+        showToast(`Added: ${name}`);
+        map.closePopup();
+    } catch(e) { showToast('Could not add parcel'); }
+}
+
+map.on('moveend zoomend', _debouncedBrowse);
 
 // Stop follow mode if user pans the map manually
 map.on('dragstart', () => {
