@@ -66,6 +66,44 @@
         .parcel-actions { display: flex; gap: 4px; flex-shrink: 0; }
         .pi-btn { width: 22px; height: 22px; background: #1e2235; border: 1px solid #2a2f45; border-radius: 5px; cursor: pointer; color: #64748b; display: flex; align-items: center; justify-content: center; font-size: 11px; transition: all 0.12s; }
         .pi-btn:hover { background: #252a3d; color: #e2e8f0; }
+        .parcel-links { display: flex; gap: 4px; flex-wrap: wrap; padding: 5px 8px 7px 34px; }
+        .pl-btn { font-size: 10px; padding: 3px 8px; border-radius: 5px; cursor: pointer; border: 1px solid; white-space: nowrap; transition: all 0.12s; background: transparent; }
+        .pl-btn:hover { opacity: 0.8; }
+        .pl-btn.tax  { color: #f59e0b; border-color: #78350f; }
+        .pl-btn.sch  { color: #4ade80; border-color: #166534; }
+        .pl-btn.nav  { color: #34d399; border-color: #065f46; }
+        .pl-btn.pin  { color: #fb923c; border-color: #7c2d12; }
+        .sd-panel { padding: 4px 8px 8px 34px; display: flex; flex-direction: column; gap: 4px; }
+        .sd-row { display: flex; gap: 8px; align-items: baseline; }
+        .sd-label { font-size: 9px; color: #64748b; text-transform: uppercase; letter-spacing: 0.07em; white-space: nowrap; min-width: 64px; }
+        .sd-name { font-size: 11px; color: #cbd5e1; }
+        .ap-info { padding: 2px 8px 6px 34px; font-size: 10px; color: #64748b; }
+        /* Directions modal */
+        #dir-modal { display: none; position: fixed; inset: 0; z-index: 4000; align-items: center; justify-content: center; }
+        #dir-modal.open { display: flex; }
+        #dir-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.65); }
+        #dir-box { position: relative; background: #13161f; border: 1px solid #2a2f45; border-radius: 16px; padding: 22px 20px 18px; width: 330px; max-width: calc(100vw - 28px); z-index: 1; box-shadow: 0 20px 60px rgba(0,0,0,0.6); }
+        #dir-close { position: absolute; top: 14px; right: 14px; background: #1e2235; border: 1px solid #2a2f45; color: #64748b; width: 28px; height: 28px; border-radius: 50%; cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center; }
+        #dir-close:hover { color: #e2e8f0; }
+        #dir-title { font-size: 14px; font-weight: 700; color: #f1f5f9; margin-bottom: 3px; padding-right: 32px; }
+        #dir-subtitle { font-size: 11px; color: #64748b; margin-bottom: 16px; }
+        .dir-section { margin-bottom: 14px; }
+        .dir-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em; color: #475569; margin-bottom: 7px; font-weight: 600; }
+        .dir-coords { font-size: 12px; color: #94a3b8; background: #0f1117; border: 1px solid #1e2235; border-radius: 7px; padding: 7px 10px; font-family: monospace; margin-bottom: 8px; }
+        .dir-nav-btns { display: flex; gap: 7px; }
+        .dir-nav-btn { flex: 1; padding: 10px 4px; border-radius: 9px; border: 1px solid; cursor: pointer; background: transparent; font-size: 11px; font-weight: 600; text-align: center; transition: opacity 0.12s; line-height: 1.4; }
+        .dir-nav-btn:hover { opacity: 0.75; }
+        .dir-nav-btn.gm { color: #4ade80; border-color: #166534; }
+        .dir-nav-btn.am { color: #60a5fa; border-color: #1e3a8a; }
+        .dir-nav-btn.wz { color: #c084fc; border-color: #581c87; }
+        #dir-route-row { display: flex; gap: 7px; }
+        #dir-route-btn { flex: 1; padding: 9px; border-radius: 8px; background: #1d4ed8; border: none; color: white; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 0.12s; }
+        #dir-route-btn:hover:not(:disabled) { background: #2563eb; }
+        #dir-route-btn:disabled { opacity: 0.5; cursor: default; }
+        #dir-clear-btn { padding: 9px 13px; border-radius: 8px; background: #1e2235; border: 1px solid #2a2f45; color: #94a3b8; font-size: 12px; cursor: pointer; }
+        #dir-route-info { font-size: 11px; color: #34d399; margin-top: 8px; text-align: center; min-height: 16px; }
+        #dir-set-pin-btn { width: 100%; padding: 8px; border-radius: 7px; background: #431407; border: 1px solid #7c2d12; color: #fb923c; font-size: 11px; font-weight: 600; cursor: pointer; margin-top: 6px; transition: background 0.12s; }
+        #dir-set-pin-btn:hover { background: #7c2d12; }
         .pi-btn.danger:hover { background: #2d1515; color: #f87171; border-color: #7f1d1d; }
         .pi-btn.muted { opacity: 0.4; }
         #sidebar-footer { padding: 8px 12px; border-top: 1px solid #1e2235; font-size: 10px; color: #374151; flex-shrink: 0; }
@@ -499,8 +537,15 @@
             <p>Add photos with GPS, load a parcel boundary, then publish a shareable link for clients.</p>
         </div>
         <div id="map-controls">
+            <div class="mc-btn" id="clear-route-btn" onclick="clearRoute()" title="Clear route" style="display:none;color:#f87171;border-color:#7f1d1d;background:#1c0a0a;width:auto;padding:0 10px;font-size:11px;font-weight:600;gap:4px">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                Route
+            </div>
             <div class="mc-btn" id="locate-btn" onclick="toggleLocate()" title="Track my location">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="9" stroke-opacity="0.3"/></svg>
+            </div>
+            <div class="mc-btn" id="basemap-btn" onclick="toggleBasemap()" title="Switch map style">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
             </div>
             <div class="mc-btn" onclick="fitAll()" title="Fit all (F)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -514,6 +559,37 @@
     <button id="fullscreen-close" onclick="event.stopPropagation();closeFullscreenViewer()">✕</button>
     <img id="fullscreen-img" src="" alt="">
     <div id="fullscreen-hint">Tap anywhere or press Esc to close</div>
+</div>
+
+<!-- Directions modal -->
+<div id="dir-modal">
+    <div id="dir-overlay" onclick="closeDirections()"></div>
+    <div id="dir-box">
+        <button id="dir-close" onclick="closeDirections()">✕</button>
+        <div id="dir-title"></div>
+        <div id="dir-subtitle"></div>
+        <div class="dir-section">
+            <div class="dir-lbl">📍 Destination</div>
+            <div class="dir-coords" id="dir-coords"></div>
+            <button id="dir-set-pin-btn" onclick="startSetAccessPin(_dirParcelId)"></button>
+        </div>
+        <div class="dir-section">
+            <div class="dir-lbl">🗺 Open in Navigation App</div>
+            <div class="dir-nav-btns">
+                <button class="dir-nav-btn gm" onclick="_launchNav('google')">Google<br>Maps</button>
+                <button class="dir-nav-btn am" onclick="_launchNav('apple')">Apple<br>Maps</button>
+                <button class="dir-nav-btn wz" onclick="_launchNav('waze')">Waze</button>
+            </div>
+        </div>
+        <div class="dir-section" style="margin-bottom:0">
+            <div class="dir-lbl">🧭 Route on Map</div>
+            <div id="dir-route-row">
+                <button id="dir-route-btn" onclick="drawRouteOnMap()">Show route from my location</button>
+                <button id="dir-clear-btn" onclick="clearRoute()" style="display:none">Clear</button>
+            </div>
+            <div id="dir-route-info"></div>
+        </div>
+    </div>
 </div>
 
 <!-- Photo modal -->
@@ -651,18 +727,40 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script>
 const map = L.map('map', { center: [39.5, -98.35], zoom: 4 });
-L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    { attribution: 'Imagery © Esri', maxZoom: 21, maxNativeZoom: 19 }).addTo(map);
+const _satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    { attribution: 'Imagery © Esri', maxZoom: 21, maxNativeZoom: 19 });
+const _mapLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    { attribution: '© OpenStreetMap © CartoDB', maxZoom: 21 });
 const labelLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png',
-    { attribution: '© CartoDB', maxZoom: 21, opacity: 0.8 }).addTo(map);
+    { attribution: '© CartoDB', maxZoom: 21, opacity: 0.8 });
+let _isSat = true;
+_satLayer.addTo(map); labelLayer.addTo(map);
 let labelsOn = true;
+
+function toggleBasemap() {
+    _isSat = !_isSat;
+    if (_isSat) {
+        map.removeLayer(_mapLayer);
+        _satLayer.addTo(map);
+        if (labelsOn) labelLayer.addTo(map);
+        showToast('Satellite view');
+        document.getElementById('basemap-btn').style.color = '';
+    } else {
+        map.removeLayer(_satLayer);
+        map.removeLayer(labelLayer);
+        _mapLayer.addTo(map);
+        showToast('Map view');
+        document.getElementById('basemap-btn').style.color = '#3b82f6';
+    }
+}
 function toggleSheet() {
     document.getElementById('sidebar').classList.toggle('sheet-open');
 }
 
 function toggleLabels() {
     labelsOn = !labelsOn;
-    labelsOn ? labelLayer.addTo(map) : map.removeLayer(labelLayer);
+    if (labelsOn && _isSat) labelLayer.addTo(map);
+    else map.removeLayer(labelLayer);
     document.getElementById('labels-btn').textContent = `Labels: ${labelsOn ? 'On' : 'Off'}`;
 }
 
@@ -841,6 +939,238 @@ function toggleParcelVisibility(id) { const p = parcels.find(x => x.id===id); if
 function fitParcel(id) { const p = parcels.find(x => x.id===id); if (!p) return; try { map.fitBounds(p.layer.getBounds(), { padding:[40,40], maxZoom:19 }); } catch(e) {} }
 function removeParcel(id) { const idx = parcels.findIndex(x => x.id===id); if (idx===-1) return; map.removeLayer(parcels[idx].layer); parcels.splice(idx,1); renderSidebar(); updateEmptyState(); showToast('Parcel removed'); }
 
+// === Access Pin ===
+let _accessPinMode = false, _accessPinParcelId = null;
+const _accessPinMarkers = {};
+
+function _buildAccessPinIcon() {
+    return L.divIcon({
+        className: '',
+        html: `<div style="position:relative;width:34px;height:44px">
+            <svg width="34" height="44" viewBox="0 0 34 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17 1C8.16 1 1 8.16 1 17C1 30 17 43 17 43C17 43 33 30 33 17C33 8.16 25.84 1 17 1Z" fill="#f59e0b" stroke="#78350f" stroke-width="1.5"/>
+                <circle cx="17" cy="17" r="9" fill="#92400e"/>
+                <svg x="10.5" y="10.5" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>
+            </svg>
+        </div>`,
+        iconSize: [34, 44],
+        iconAnchor: [17, 44],
+        popupAnchor: [0, -46]
+    });
+}
+
+function startSetAccessPin(parcelId) {
+    _accessPinParcelId = parcelId;
+    _accessPinMode = true;
+    closeDirections();
+    document.getElementById('find-banner').textContent = '📍 Tap map to place the access point (gate / driveway entrance)';
+    document.getElementById('find-banner').classList.add('show');
+    document.getElementById('map').classList.add('find-mode');
+    showToast('Tap the map to set the access point');
+}
+
+function _placeAccessPin(parcelId, lat, lng) {
+    const p = parcels.find(x => x.id === parcelId);
+    if (!p) return;
+    if (_accessPinMarkers[parcelId]) map.removeLayer(_accessPinMarkers[parcelId]);
+    p.accessPin = { lat, lng };
+    const marker = L.marker([lat, lng], { icon: _buildAccessPinIcon(), draggable: true }).addTo(map);
+    marker.bindPopup(`<div style="min-width:130px;font-size:12px"><b style="color:#f59e0b">Access Point</b><br><span style="color:#64748b;font-size:10px">${p.name}</span><br><span style="font-family:monospace;font-size:10px;color:#94a3b8">${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div>`);
+    marker.on('dragend', () => {
+        const pos = marker.getLatLng();
+        p.accessPin = { lat: pos.lat, lng: pos.lng };
+        marker.setPopupContent(`<div style="min-width:130px;font-size:12px"><b style="color:#f59e0b">Access Point</b><br><span style="color:#64748b;font-size:10px">${p.name}</span><br><span style="font-family:monospace;font-size:10px;color:#94a3b8">${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}</span></div>`);
+        renderSidebar();
+    });
+    _accessPinMarkers[parcelId] = marker;
+    renderSidebar();
+    showToast('Access pin set — drag to adjust');
+}
+
+function removeAccessPin(parcelId) {
+    const p = parcels.find(x => x.id === parcelId);
+    if (!p) return;
+    if (_accessPinMarkers[parcelId]) { map.removeLayer(_accessPinMarkers[parcelId]); delete _accessPinMarkers[parcelId]; }
+    p.accessPin = null;
+    renderSidebar();
+    showToast('Access pin removed');
+}
+
+// === Directions ===
+let _dirParcelId = null, _routeLayer = null, _userLocMarker = null, _destCoords = null;
+
+function _getDest(parcelId) {
+    const p = parcels.find(x => x.id === parcelId);
+    if (!p) return null;
+    if (p.accessPin) return p.accessPin;
+    try { const c = p.layer.getBounds().getCenter(); return { lat: c.lat, lng: c.lng }; } catch(e) { return null; }
+}
+
+function openDirections(parcelId) {
+    _dirParcelId = parcelId;
+    const p = parcels.find(x => x.id === parcelId);
+    if (!p) return;
+    _destCoords = _getDest(parcelId);
+    document.getElementById('dir-title').textContent = p.name;
+    document.getElementById('dir-subtitle').textContent = p.accessPin ? '📍 Using custom access pin' : '⚠️ No access pin set — using parcel center';
+    document.getElementById('dir-coords').textContent = _destCoords ? `${_destCoords.lat.toFixed(5)}, ${_destCoords.lng.toFixed(5)}` : 'No location available';
+    document.getElementById('dir-set-pin-btn').textContent = p.accessPin ? '✏️ Move Access Pin on Map' : '📍 Drop Access Pin on Map';
+    document.getElementById('dir-route-info').textContent = '';
+    document.getElementById('dir-clear-btn').style.display = _routeLayer ? 'flex' : 'none';
+    document.getElementById('clear-route-btn').style.display = _routeLayer ? 'flex' : 'none';
+    document.getElementById('dir-modal').classList.add('open');
+}
+
+function closeDirections() { document.getElementById('dir-modal').classList.remove('open'); }
+
+function _launchNav(app) {
+    if (!_destCoords) { showToast('No destination coordinates'); return; }
+    const { lat, lng } = _destCoords;
+    const urls = {
+        google: `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}&travelmode=driving`,
+        apple:  `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
+        waze:   `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`
+    };
+    window.open(urls[app], '_blank');
+}
+
+async function drawRouteOnMap() {
+    if (!_destCoords) { showToast('No destination — set an access pin first'); return; }
+    const btn = document.getElementById('dir-route-btn');
+    btn.textContent = 'Getting your location…';
+    btn.disabled = true;
+    navigator.geolocation.getCurrentPosition(async pos => {
+        const uLat = pos.coords.latitude, uLng = pos.coords.longitude;
+        const dLat = _destCoords.lat, dLng = _destCoords.lng;
+        // User location dot
+        if (_userLocMarker) map.removeLayer(_userLocMarker);
+        _userLocMarker = L.circleMarker([uLat, uLng], { radius: 9, color: '#fff', weight: 2, fillColor: '#3b82f6', fillOpacity: 1 }).addTo(map).bindPopup('Your Location');
+        // Clear old route
+        if (_routeLayer) { map.removeLayer(_routeLayer); _routeLayer = null; }
+        // OSRM routing via JSONP
+        const routeData = await _osrmRoute(uLat, uLng, dLat, dLng);
+        if (routeData) {
+            _routeLayer = L.geoJSON(routeData.geometry, { style: { color: '#3b82f6', weight: 5, opacity: 0.85, dashArray: '10, 5' } }).addTo(map);
+            const miles = (routeData.distance / 1609.34).toFixed(1);
+            const mins = Math.round(routeData.duration / 60);
+            document.getElementById('dir-route-info').textContent = `~${miles} mi · ~${mins} min drive`;
+        } else {
+            // Fallback: straight line
+            _routeLayer = L.polyline([[uLat, uLng], [dLat, dLng]], { color: '#3b82f6', weight: 3, opacity: 0.7, dashArray: '12, 6' }).addTo(map);
+            const miles = _haversine(uLat, uLng, dLat, dLng).toFixed(1);
+            document.getElementById('dir-route-info').textContent = `~${miles} mi as the crow flies (straight line)`;
+        }
+        map.fitBounds([[uLat, uLng], [dLat, dLng]], { padding: [70, 70] });
+        document.getElementById('dir-clear-btn').style.display = 'flex';
+        document.getElementById('clear-route-btn').style.display = 'flex';
+        btn.textContent = 'Show route from my location';
+        btn.disabled = false;
+        closeDirections();
+    }, () => {
+        btn.textContent = 'Show route from my location';
+        btn.disabled = false;
+        showToast('Location access denied — enable GPS to show route');
+    }, { timeout: 10000 });
+}
+
+function _osrmRoute(fromLat, fromLng, toLat, toLng) {
+    return new Promise(resolve => {
+        const cb = '_osrm' + Date.now();
+        const s = document.createElement('script');
+        const timer = setTimeout(() => { cleanup(); resolve(null); }, 9000);
+        window[cb] = data => { cleanup(); resolve(data.code === 'Ok' && data.routes?.[0] ? { geometry: data.routes[0].geometry, distance: data.routes[0].distance, duration: data.routes[0].duration } : null); };
+        s.onerror = () => { cleanup(); resolve(null); };
+        s.src = `https://router.project-osrm.org/route/v1/driving/${fromLng},${fromLat};${toLng},${toLat}?overview=full&geometries=geojson&jsonp_callback=${cb}`;
+        function cleanup() { clearTimeout(timer); delete window[cb]; s.remove(); }
+        document.head.appendChild(s);
+    });
+}
+
+function _haversine(la1, lo1, la2, lo2) {
+    const R = 3958.8, d2r = Math.PI / 180;
+    const dlat = (la2 - la1) * d2r, dlng = (lo2 - lo1) * d2r;
+    const a = Math.sin(dlat/2)**2 + Math.cos(la1*d2r) * Math.cos(la2*d2r) * Math.sin(dlng/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function clearRoute() {
+    if (_routeLayer) { map.removeLayer(_routeLayer); _routeLayer = null; }
+    if (_userLocMarker) { map.removeLayer(_userLocMarker); _userLocMarker = null; }
+    document.getElementById('dir-clear-btn').style.display = 'none';
+    document.getElementById('clear-route-btn').style.display = 'none';
+    document.getElementById('dir-route-info').textContent = '';
+}
+
+// === Tax records & school district links ===
+const _COUNTY_TAX_HOME = {
+    'Placer':     'https://common1.mptsweb.com/mbap/placer/asr',
+    'Sacramento': 'https://assessorprop8.saccounty.gov/',
+    'El Dorado':  'https://parcel.edcgov.us/',
+    'Nevada':     'https://www.mynevadacounty.com/1002/Parcel-Maps-Data',
+    'Yolo':       'https://assessor.yolocounty.org/',
+};
+
+function openTaxRecords(id) {
+    const p = parcels.find(x => x.id === id);
+    if (!p) return;
+    let url;
+    if (p.apn) {
+        // Google search with APN gives best result across all counties
+        url = `https://www.google.com/search?q=${encodeURIComponent(p.apn + ' ' + (p.county||'') + ' county assessor property tax')}`;
+    } else {
+        url = (p.county && _COUNTY_TAX_HOME[p.county])
+            || `https://www.google.com/search?q=${encodeURIComponent((p.county||'') + ' county assessor property tax records')}`;
+    }
+    window.open(url, '_blank');
+}
+
+async function lookupSchoolDistricts(id) {
+    const p = parcels.find(x => x.id === id);
+    if (!p) return;
+    const panel = document.getElementById('sd-' + id);
+    if (!panel) return;
+    if (panel.dataset.loaded === '1') {
+        panel.style.display = panel.style.display === 'none' ? '' : 'none';
+        return;
+    }
+    panel.style.display = '';
+    panel.innerHTML = '<span style="color:#64748b;font-size:10px;padding:0 0 2px">Looking up districts…</span>';
+    try {
+        const c = p.layer.getBounds().getCenter();
+        // Use Census TIGERweb ArcGIS REST (supports JSONP — works from file://)
+        // Layers: 14 = Unified, 16 = Secondary, 18 = Elementary school districts
+        const base = 'https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/tigerWMS_Current/MapServer';
+        const qp = {
+            geometry: `${c.lng.toFixed(6)},${c.lat.toFixed(6)}`,
+            geometryType: 'esriGeometryPoint',
+            inSR: '4326', outSR: '4326',
+            spatialRel: 'esriSpatialRelIntersects',
+            outFields: 'NAME',
+            returnGeometry: 'false'
+        };
+        const [unified, secondary, elem] = await Promise.all([
+            _jsonpFetch(`${base}/14/query`, qp).catch(() => null),
+            _jsonpFetch(`${base}/16/query`, qp).catch(() => null),
+            _jsonpFetch(`${base}/18/query`, qp).catch(() => null),
+        ]);
+        const uName = unified?.features?.[0]?.attributes?.NAME;
+        const eName = elem?.features?.[0]?.attributes?.NAME;
+        const sName = secondary?.features?.[0]?.attributes?.NAME;
+        let html = '';
+        if (uName) {
+            html += `<div class="sd-row"><span class="sd-label">Unified K-12</span><span class="sd-name">${uName}</span></div>`;
+        } else {
+            if (eName) html += `<div class="sd-row"><span class="sd-label">Elementary</span><span class="sd-name">${eName}</span></div>`;
+            if (sName) html += `<div class="sd-row"><span class="sd-label">Secondary</span><span class="sd-name">${sName}</span></div>`;
+        }
+        panel.innerHTML = html || '<span style="color:#64748b;font-size:10px">No district data found</span>';
+        panel.dataset.loaded = '1';
+    } catch(e) {
+        panel.innerHTML = '<span style="color:#f87171;font-size:10px">District lookup failed</span>';
+        console.warn('School district lookup error:', e);
+    }
+}
+
 function renderSidebar() {
     document.getElementById('photo-count').textContent = photos.length;
     const mpc = document.getElementById('m-photo-count'); if (mpc) mpc.textContent = photos.length;
@@ -859,7 +1189,7 @@ function renderSidebar() {
         </div>`).join('') : '<div style="padding:16px 12px;font-size:12px;color:#374151;text-align:center">No photos yet</div>';
     document.getElementById('parcel-count').textContent = parcels.length;
     document.getElementById('parcel-list').innerHTML = parcels.length ? parcels.map(p => `
-        <div class="parcel-item">
+        <div class="parcel-item" style="flex-wrap:wrap">
             <div class="parcel-swatch" style="background:${p.color}"></div>
             <div class="parcel-info">
                 <div class="parcel-name" title="${p.name}">${p.name}</div>
@@ -870,6 +1200,14 @@ function renderSidebar() {
                 <div class="pi-btn" onclick="fitParcel('${p.id}')" title="Zoom to parcel">⊡</div>
                 <div class="pi-btn danger" onclick="removeParcel('${p.id}')" title="Remove">✕</div>
             </div>
+            <div class="parcel-links">
+                <button class="pl-btn tax" onclick="openTaxRecords('${p.id}')">📋 Tax Records</button>
+                <button class="pl-btn sch" onclick="lookupSchoolDistricts('${p.id}')">🏫 School Districts</button>
+                <button class="pl-btn nav" onclick="openDirections('${p.id}')">🧭 Directions</button>
+                <button class="pl-btn pin" onclick="startSetAccessPin('${p.id}')">${p.accessPin ? '📍 Move Access Pin' : '📍 Set Access Pin'}</button>
+            </div>
+            ${p.accessPin ? `<div class="ap-info">📍 ${p.accessPin.lat.toFixed(5)}, ${p.accessPin.lng.toFixed(5)} · <span style="cursor:pointer;color:#f87171;text-decoration:underline" onclick="removeAccessPin('${p.id}')">Remove</span></div>` : ''}
+            <div id="sd-${p.id}" class="sd-panel" style="display:none"></div>
         </div>`).join('') : '<div style="padding:10px 12px;font-size:11px;color:#374151;text-align:center">No parcels loaded</div>';
 }
 function sidebarPhoto(id) { activeSidebarId = id; renderSidebar(); const p = photos.find(x=>x.id===id); if (p?.hasGps) map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),18), { duration:0.7 }); }
@@ -1122,7 +1460,7 @@ async function startPublish() {
             photoMeta.push({ filename: safeName, lat: photo.lat, lng: photo.lng, heading: photo.heading, altitude: photo.altitude, relAlt: photo.relAlt, datetime: photo.datetime ? new Date(photo.datetime).toISOString() : null, make: photo.make, model: photo.model, hasGps: photo.hasGps });
         }
         setPublishProgress('🗺️', 'Building map…', 60);
-        const parcelMeta = parcels.map(p => ({ name: p.name, color: p.color, geojson: p.geojson }));
+        const parcelMeta = parcels.map(p => ({ name: p.name, color: p.color, geojson: p.geojson, accessPin: p.accessPin || null }));
         const viewerHtml = generateShareableViewer(name, photoMeta, parcelMeta, photoDataUrls);
         const blob = new Blob([viewerHtml], { type: 'text/html' });
         const safeSlug = name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(0,50);
@@ -1279,7 +1617,30 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
 #hdr{background:#13161f;border-bottom:1px solid #1e2235;padding:10px 16px;padding-top:max(10px,env(safe-area-inset-top));display:flex;align-items:center;gap:10px;flex-shrink:0;z-index:100}
 #hdr-title{font-size:15px;font-weight:700;color:#f1f5f9;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #hdr-meta{font-size:11px;color:#475569;flex-shrink:0}
-#hdr-right{margin-left:auto;font-size:10px;color:#2e3550;flex-shrink:0}
+#hdr-right{margin-left:auto;flex-shrink:0}
+#dir-fab{background:#1d4ed8;border:none;color:white;padding:8px 14px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;box-shadow:0 2px 12px rgba(29,78,216,0.5)}
+#dir-fab:hover{background:#2563eb}
+/* Directions sheet */
+#dsh{display:none;position:fixed;inset:0;z-index:999;align-items:flex-end;justify-content:center}
+#dsh.open{display:flex}
+#dsh-bg{position:absolute;inset:0;background:rgba(0,0,0,0.6)}
+#dsh-box{position:relative;background:#13161f;border:1px solid #2a2f45;border-radius:20px 20px 0 0;padding:24px 20px 32px;width:100%;max-width:480px;z-index:1}
+#dsh-title{font-size:15px;font-weight:700;color:#f1f5f9;margin-bottom:3px}
+#dsh-sub{font-size:11px;color:#64748b;margin-bottom:18px}
+#dsh-coords{font-size:12px;color:#94a3b8;background:#0f1117;border:1px solid #1e2235;border-radius:7px;padding:8px 10px;font-family:monospace;margin-bottom:16px}
+.dsh-lbl{font-size:10px;text-transform:uppercase;letter-spacing:0.07em;color:#475569;font-weight:600;margin-bottom:8px}
+.dsh-nav-btns{display:flex;gap:8px;margin-bottom:18px}
+.dsh-btn{flex:1;padding:14px 6px;border-radius:12px;border:1px solid;cursor:pointer;background:transparent;font-size:12px;font-weight:700;text-align:center;line-height:1.4}
+.dsh-btn:hover{opacity:0.8}
+.dsh-btn.gm{color:#4ade80;border-color:#166534}
+.dsh-btn.am{color:#60a5fa;border-color:#1e3a8a}
+.dsh-btn.wz{color:#c084fc;border-color:#581c87}
+#dsh-route-btn{width:100%;padding:12px;border-radius:10px;background:#1d4ed8;border:none;color:white;font-size:13px;font-weight:700;cursor:pointer;margin-bottom:8px}
+#dsh-route-btn:hover:not(:disabled){background:#2563eb}
+#dsh-route-btn:disabled{opacity:0.5}
+#dsh-route-info{font-size:11px;color:#34d399;text-align:center;min-height:16px}
+#dsh-close{position:absolute;top:16px;right:16px;background:#1e2235;border:1px solid #2a2f45;color:#64748b;width:30px;height:30px;border-radius:50%;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+#dsh-close:hover{color:#e2e8f0}
 #map{flex:1;min-height:0;width:100%;touch-action:pan-x pan-y}
 /* Lightbox */
 #lightbox{position:fixed;inset:0;background:#000;z-index:9999;display:none;align-items:center;justify-content:center}
@@ -1309,9 +1670,26 @@ html,body{width:100%;height:100%;height:-webkit-fill-available;background:#0f111
     <svg width="20" height="20" viewBox="0 0 52 52" fill="none" flex-shrink="0"><rect width="52" height="52" rx="11" fill="#0c111e"/><rect x="6" y="6" width="40" height="40" rx="7" stroke="#f59e0b" stroke-width="3.5"/><rect x="14" y="14" width="24" height="24" rx="4" stroke="#f59e0b" stroke-width="2" opacity="0.45"/><circle cx="33" cy="19" r="5.5" fill="#3b82f6"/><circle cx="33" cy="19" r="2.5" fill="#0c111e"/><line x1="33" y1="19" x2="43" y2="9" stroke="#3b82f6" stroke-width="2.8" stroke-linecap="round"/></svg>
     <span id="hdr-title">${propertyName}</span>
     <span id="hdr-meta">${photoMeta.length} photo${photoMeta.length!==1?'s':''} · ${parcelMeta.length} parcel${parcelMeta.length!==1?'s':''}</span>
-    <span id="hdr-right">LandSightMaps</span>
+    <button id="dir-fab" onclick="openDsh()">🧭 Directions</button>
   </div>
   <div id="map"></div>
+</div>
+<div id="dsh">
+  <div id="dsh-bg" onclick="closeDsh()"></div>
+  <div id="dsh-box">
+    <button id="dsh-close" onclick="closeDsh()">✕</button>
+    <div id="dsh-title">${propertyName}</div>
+    <div id="dsh-sub"></div>
+    <div id="dsh-coords"></div>
+    <div class="dsh-lbl">Open in navigation app</div>
+    <div class="dsh-nav-btns">
+      <button class="dsh-btn gm" onclick="dshNav('google')">Google<br>Maps</button>
+      <button class="dsh-btn am" onclick="dshNav('apple')">Apple<br>Maps</button>
+      <button class="dsh-btn wz" onclick="dshNav('waze')">Waze</button>
+    </div>
+    <button id="dsh-route-btn" onclick="dshRoute()">📍 Show route from my location</button>
+    <div id="dsh-route-info"></div>
+  </div>
 </div>
 <div id="lightbox">
   <button id="lb-close" onclick="closeLb()">✕</button>
@@ -1366,10 +1744,77 @@ function navLb(dir){
 }
 function closeLb(){document.getElementById('lightbox').classList.remove('open');}
 document.addEventListener('keydown',e=>{
-  if(e.key==='Escape')closeLb();
+  if(e.key==='Escape'){ closeLb(); closeDsh(); }
   if(e.key==='ArrowLeft')navLb(-1);
   if(e.key==='ArrowRight')navLb(1);
 });
+// === Directions ===
+// Find best destination: prefer parcel with access pin, else first parcel center
+function _dshDest(){
+  for(const p of DATA.parcels){ if(p.accessPin) return {coords:p.accessPin, label:'📍 Access pin · '+p.name, hasPin:true}; }
+  if(DATA.parcels.length){
+    try{const b=L.geoJSON(DATA.parcels[0].geojson).getBounds().getCenter();return{coords:{lat:b.lat,lng:b.lng},label:'Using parcel center (no access pin set)',hasPin:false};}catch(e){}
+  }
+  return null;
+}
+let _dshRoute=null,_dshUserDot=null;
+function openDsh(){
+  const d=_dshDest();
+  document.getElementById('dsh-sub').textContent=d?d.label:'No location data';
+  document.getElementById('dsh-coords').textContent=d?d.coords.lat.toFixed(5)+', '+d.coords.lng.toFixed(5):'—';
+  document.getElementById('dsh-route-info').textContent='';
+  document.getElementById('dsh').classList.add('open');
+}
+function closeDsh(){ document.getElementById('dsh').classList.remove('open'); }
+function dshNav(app){
+  const d=_dshDest(); if(!d)return;
+  const {lat,lng}=d.coords;
+  const urls={google:'https://www.google.com/maps/dir/?api=1&destination='+lat+','+lng+'&travelmode=driving',apple:'https://maps.apple.com/?daddr='+lat+','+lng+'&dirflg=d',waze:'https://waze.com/ul?ll='+lat+','+lng+'&navigate=yes'};
+  window.open(urls[app],'_blank');
+}
+function dshRoute(){
+  const d=_dshDest(); if(!d){return;}
+  const btn=document.getElementById('dsh-route-btn');
+  btn.textContent='Getting your location…'; btn.disabled=true;
+  navigator.geolocation.getCurrentPosition(async pos=>{
+    const uLat=pos.coords.latitude,uLng=pos.coords.longitude;
+    const {lat:dLat,lng:dLng}=d.coords;
+    if(_dshUserDot)map.removeLayer(_dshUserDot);
+    _dshUserDot=L.circleMarker([uLat,uLng],{radius:9,color:'#fff',weight:2,fillColor:'#3b82f6',fillOpacity:1}).addTo(map).bindPopup('Your Location');
+    if(_dshRoute){map.removeLayer(_dshRoute);_dshRoute=null;}
+    const route=await _osrmJSONP(uLat,uLng,dLat,dLng);
+    if(route){
+      _dshRoute=L.geoJSON(route.geometry,{style:{color:'#3b82f6',weight:5,opacity:0.85,dashArray:'10,5'}}).addTo(map);
+      const mi=(route.distance/1609.34).toFixed(1),mins=Math.round(route.duration/60);
+      document.getElementById('dsh-route-info').textContent='~'+mi+' mi · ~'+mins+' min drive';
+    } else {
+      _dshRoute=L.polyline([[uLat,uLng],[dLat,dLng]],{color:'#3b82f6',weight:3,dashArray:'12,6'}).addTo(map);
+      const mi=_hav(uLat,uLng,dLat,dLng).toFixed(1);
+      document.getElementById('dsh-route-info').textContent='~'+mi+' mi as the crow flies';
+    }
+    map.fitBounds([[uLat,uLng],[dLat,dLng]],{padding:[70,70]});
+    btn.textContent='📍 Show route from my location'; btn.disabled=false;
+    closeDsh();
+  },()=>{btn.textContent='📍 Show route from my location';btn.disabled=false;alert('Location access denied — please allow location to show a route.');},{timeout:10000});
+}
+function _osrmJSONP(la1,lo1,la2,lo2){
+  return new Promise(res=>{
+    const cb='_osrm'+Date.now();
+    const s=document.createElement('script');
+    const t=setTimeout(()=>{cleanup();res(null);},9000);
+    window[cb]=data=>{cleanup();res(data.code==='Ok'&&data.routes?.[0]?{geometry:data.routes[0].geometry,distance:data.routes[0].distance,duration:data.routes[0].duration}:null);};
+    s.onerror=()=>{cleanup();res(null);};
+    s.src='https://router.project-osrm.org/route/v1/driving/'+lo1+','+la1+';'+lo2+','+la2+'?overview=full&geometries=geojson&jsonp_callback='+cb;
+    function cleanup(){clearTimeout(t);delete window[cb];s.remove();}
+    document.head.appendChild(s);
+  });
+}
+function _hav(la1,lo1,la2,lo2){
+  const R=3958.8,dr=Math.PI/180;
+  const dl=(la2-la1)*dr,dg=(lo2-lo1)*dr;
+  const a=Math.sin(dl/2)**2+Math.cos(la1*dr)*Math.cos(la2*dr)*Math.sin(dg/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
 <\/script>
 </body>
 </html>
@@ -1399,11 +1844,8 @@ function onSearchInput() {
 
 async function _fetchSugg(q) {
     try {
-        // Bias toward California using the map's current center
         const c = map.getCenter();
-        const params = new URLSearchParams({ text: q, f: 'json', maxSuggestions: 6, countryCode: 'USA', location: `${c.lng},${c.lat}`, distance: 160000 });
-        const r = await fetch(`${_SUGGEST_URL}?${params}`);
-        const data = await r.json();
+        const data = await _jsonpFetch(_SUGGEST_URL, { text: q, maxSuggestions: 6, countryCode: 'USA', location: `${c.lng},${c.lat}`, distance: 160000 });
         const items = (data.suggestions || []).filter(s => !s.isCollection);
         const box = document.getElementById('search-suggestions');
         if (!items.length) {
@@ -1428,19 +1870,19 @@ async function _pickSugg(text, magicKey) {
     _closeSugg();
     document.getElementById('parcel-search-input').value = '';
     try {
-        const params = new URLSearchParams({ SingleLine: decodeURIComponent(text), magicKey: decodeURIComponent(magicKey), f: 'json', outFields: 'Place_addr', forStorage: 'false' });
-        const r = await fetch(`${_FIND_URL}?${params}`);
-        const data = await r.json();
+        const data = await _jsonpFetch(_FIND_URL, { SingleLine: decodeURIComponent(text), magicKey: decodeURIComponent(magicKey), outFields: 'Place_addr', forStorage: 'false' });
         const c = data.candidates?.[0];
         if (!c?.location) return;
         const lat = c.location.y, lng = c.location.x;
-        map.flyTo([lat, lng], 17, { duration: 1.0 });
-        // Load parcel boundary + APN for this address
         showToast('Loading parcel…');
         const apn = await loadParcelAtPoint(lat, lng);
-        if (apn) showToast(`APN: ${apn}`);
-        else showToast('No parcel boundary found for this address');
-    } catch(e) { console.warn('Geocode err:', e); }
+        if (apn) {
+            showToast(`APN: ${apn}`);
+        } else {
+            map.setView([lat, lng], 17);
+            showToast('No parcel boundary found for this address');
+        }
+    } catch(e) { console.warn('Geocode err:', e); showToast('Search failed'); }
 }
 
 function onSearchKeydown(e) {
@@ -1471,31 +1913,60 @@ const COUNTY_SERVICES = [
 ];
 
 function _getApn(props, apnField) {
-    // Try the known field first, then common fallbacks
     const candidates = [apnField,'APN','PARCELID','PARCEL_ID','PRCL_12DIGIT','MPTS_ASMT_NUMBER','PRCL_ID'];
     for (const f of candidates) { if (props[f]) return String(props[f]).trim(); }
     return null;
 }
 
+// JSONP loader — works from file:// pages where fetch() is blocked
+function _jsonpFetch(url, params) {
+    return new Promise((resolve, reject) => {
+        const cbName = '_arcgiscb' + Date.now() + Math.random().toString(36).slice(2,8);
+        const qs = new URLSearchParams({ ...params, f: 'json', callback: cbName }).toString();
+        const timer = setTimeout(() => { cleanup(); reject(new Error('JSONP timeout')); }, 12000);
+        window[cbName] = data => { cleanup(); resolve(data); };
+        const s = document.createElement('script');
+        s.onerror = () => { cleanup(); reject(new Error('script failed')); };
+        s.src = `${url}?${qs}`;
+        function cleanup() { clearTimeout(timer); delete window[cbName]; s.remove(); }
+        document.head.appendChild(s);
+    });
+}
+
+// Convert ArcGIS native JSON → GeoJSON FeatureCollection
+function _esriToGeoJSON(data) {
+    if (!data.features?.length) return null;
+    const features = data.features.map(f => {
+        const g = f.geometry;
+        let geometry = null;
+        if (g?.rings) {
+            geometry = g.rings.length === 1
+                ? { type: 'Polygon', coordinates: g.rings }
+                : { type: 'MultiPolygon', coordinates: g.rings.map(r => [r]) };
+        }
+        return { type: 'Feature', geometry, properties: f.attributes };
+    });
+    return { type: 'FeatureCollection', features };
+}
+
 async function loadParcelAtPoint(lat, lng) {
-    // Find candidate counties (point in bounding box)
     const candidates = COUNTY_SERVICES.filter(c => lat >= c.bbox.s && lat <= c.bbox.n && lng >= c.bbox.w && lng <= c.bbox.e);
-    // Fall back to all if no bbox match (edge of county)
     const services = candidates.length ? candidates : COUNTY_SERVICES;
 
     for (const svc of services) {
         try {
-            const params = new URLSearchParams({
-                geometry: JSON.stringify({ x: lng, y: lat }),
+            const data = await _jsonpFetch(`${svc.url}/query`, {
+                geometry: `${lng},${lat}`,
                 geometryType: 'esriGeometryPoint',
-                inSR: '4326', outSR: '4326',
+                inSR: '4326',
+                outSR: '4326',
                 spatialRel: 'esriSpatialRelIntersects',
-                outFields: '*', f: 'geojson'
+                outFields: '*',
+                returnGeometry: 'true'
             });
-            const r = await fetch(`${svc.url}/query?${params}`);
-            if (!r.ok) continue;
-            const gj = await r.json();
-            if (!gj.features?.length) continue;
+            if (data.error) { console.warn(`${svc.name} error:`, data.error.message); continue; }
+            const gj = _esriToGeoJSON(data);
+            if (!gj) continue;
 
             const color = PARCEL_COLORS[parcelColorIdx++ % PARCEL_COLORS.length];
             const f0props = gj.features[0]?.properties || {};
@@ -1517,12 +1988,12 @@ async function loadParcelAtPoint(lat, lng) {
             }).addTo(map);
 
             parcels.push({ id: uid('par'), name: displayName, apn, color, layer, geojson: gj, visible: true, featureCount: gj.features.length, county: svc.name });
-            try { map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 19 }); } catch(_) {}
+            try { map.stop(); map.fitBounds(layer.getBounds(), { padding: [40, 40], maxZoom: 19 }); } catch(_) {}
             renderSidebar(); updateEmptyState();
-            return apn; // return APN so caller can use it
+            return apn;
         } catch(err) { console.warn(`${svc.name} parcel query failed:`, err); }
     }
-    return null; // no result from any county
+    return null;
 }
 
 // === Find parcel by map tap ===
@@ -1584,6 +2055,14 @@ map.on('click', (e) => {
 map.on('contextmenu', () => { if (_movePhotoId) { _cancelMovePhoto(); showToast('Move cancelled'); } });
 
 map.on('click', async (e) => {
+    // Access pin placement mode
+    if (_accessPinMode) {
+        _accessPinMode = false;
+        document.getElementById('find-banner').classList.remove('show');
+        document.getElementById('map').classList.remove('find-mode');
+        _placeAccessPin(_accessPinParcelId, e.latlng.lat, e.latlng.lng);
+        return;
+    }
     if (!findParcelMode) return;
     toggleFindParcel();
     const { lat, lng } = e.latlng;
@@ -1695,12 +2174,12 @@ function closeModal(id) { document.getElementById(id).classList.remove('open'); 
 
 // === Toast ===
 let _toastTimer;
-function showToast(msg) {
+function showToast(msg, duration) {
     const t = document.getElementById('toast');
     t.textContent = msg;
     t.classList.add('show');
     clearTimeout(_toastTimer);
-    _toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+    _toastTimer = setTimeout(() => t.classList.remove('show'), duration || 2800);
 }
 
 // === Utils ===
@@ -1808,8 +2287,23 @@ function _onLocate(pos) {
 
 function _onLocateErr(err) {
     _stopLocate();
-    const msgs = { 1: 'Location permission denied', 2: 'Location unavailable', 3: 'Location timed out' };
-    showToast(msgs[err.code] || 'Could not get location');
+    if (err.code === 1) {
+        showToast('Location blocked — check browser & OS settings', 5000);
+        // Show a more detailed modal hint after the toast
+        setTimeout(() => {
+            const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+            const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+            let hint = '';
+            if (isIOS) hint = 'On iPhone: Settings → Privacy → Location Services → ' + (isSafari ? 'Safari' : 'Chrome') + ' → While Using';
+            else if (/mac/i.test(navigator.userAgent)) hint = 'On Mac: Click the lock icon in your address bar and allow Location, or check System Settings → Privacy → Location Services';
+            else hint = 'Click the lock/info icon in your address bar and set Location to Allow';
+            if (hint) showToast(hint, 7000);
+        }, 1200);
+    } else if (err.code === 2) {
+        showToast('Location signal unavailable — try moving outside', 4000);
+    } else {
+        showToast('Location timed out — tap again to retry', 4000);
+    }
 }
 
 function _stopLocate() {
