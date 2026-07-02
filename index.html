@@ -360,7 +360,8 @@
             #parcel-list { max-height: 120px; }
 
             /* Map controls — shift up so not hidden behind sheet */
-            #map-controls { bottom: 72px; right: 72px; }
+            #map-controls { bottom: 72px; right: 12px; transition: bottom 0.35s cubic-bezier(0.32,0.72,0,1); }
+            #sidebar.sheet-open ~ #map-container #map-controls { bottom: calc(72vh + 12px); }
 
 
             /* Mobile FABs — floating on map */
