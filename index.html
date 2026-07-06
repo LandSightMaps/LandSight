@@ -13,6 +13,7 @@
     <link rel="manifest" id="pwa-manifest">
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg width='512' height='512' viewBox='0 0 52 52' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Crect width='52' height='52' rx='11' fill='%230c111e'/%3E%3Crect x='6' y='6' width='40' height='40' rx='7' stroke='%23f59e0b' stroke-width='3.5'/%3E%3Crect x='14' y='14' width='24' height='24' rx='4' stroke='%23f59e0b' stroke-width='2' opacity='0.45'/%3E%3Ccircle cx='33' cy='19' r='5.5' fill='%233b82f6'/%3E%3Ccircle cx='33' cy='19' r='2.5' fill='%230c111e'/%3E%3Cline x1='33' y1='19' x2='43' y2='9' stroke='%233b82f6' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@3/dist/maplibre-gl.css">
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f1117; color: #e2e8f0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -140,6 +141,8 @@
 
         #map-container { flex: 1; position: relative; min-width: 0; }
         #map { width: 100%; height: 100%; }
+        #map3d { width: 100%; height: 100%; display: none; position: absolute; inset: 0; background: #0a0c12; }
+        .mc-btn.terrain-active { background: #78350f; border-color: #f59e0b; color: #fcd34d; }
         #map-controls { position: absolute; bottom: 28px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
         .mc-btn { width: 34px; height: 34px; background: #13161f; border: 1px solid #1e2235; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #94a3b8; transition: all 0.15s; font-size: 13px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
         .mc-btn:hover { background: #1a1e2e; color: #e2e8f0; border-color: #2a2f45; }
@@ -523,6 +526,7 @@
 
     <div id="map-container">
         <div id="map"></div>
+        <div id="map3d"></div>
         <!-- Mobile FABs -->
         <div id="mobile-fabs">
             <button class="mob-fab amber" id="find-parcel-fab" onclick="toggleFindParcel()" title="Tap map to load parcel">
@@ -556,6 +560,9 @@
             </div>
             <div class="mc-btn" id="basemap-btn" onclick="toggleBasemap()" title="Switch map style">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+            </div>
+            <div class="mc-btn" id="terrain3d-btn" onclick="toggle3D()" title="Toggle 3D terrain view">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21l4-13 3 6 2-3 5 10H8z"/><path d="M2 21l6-13 2.5 5"/></svg>
             </div>
             <div class="mc-btn" onclick="fitAll()" title="Fit all (F)">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
@@ -735,6 +742,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://unpkg.com/exifr@7.1.3/dist/full.umd.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://unpkg.com/maplibre-gl@3/dist/maplibre-gl.js"></script>
 <script>
 const map = L.map('map', { center: [39.5, -98.35], zoom: 4 });
 const _satLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -765,6 +773,145 @@ function toggleBasemap() {
 }
 function toggleSheet() {
     document.getElementById('sidebar').classList.toggle('sheet-open');
+}
+
+// === 3D Terrain Mode — MapLibre GL JS ===
+// Works reliably from a plain double-clicked file (no local server needed),
+// unlike CesiumJS which requires its background Worker scripts to load from
+// an http(s) origin.
+let is3D = false, map3d = null, _map3dLoaded = false;
+let _map3dMarkers = []; // { id, marker } for photo pins in the 3D view
+
+function toggle3D() {
+    is3D = !is3D;
+    const btn = document.getElementById('terrain3d-btn');
+    const el2d = document.getElementById('map');
+    const el3d = document.getElementById('map3d');
+
+    if (is3D) {
+        btn.classList.add('terrain-active');
+        el2d.style.display = 'none';
+        el3d.style.display = 'block';
+        const c = map.getCenter();
+        if (!map3d) {
+            initMap3D(c.lat, c.lng, map.getZoom());
+        } else {
+            map3d.jumpTo({ center: [c.lng, c.lat], zoom: Math.max(map.getZoom() - 1, 0) });
+            map3d.resize();
+            _syncParcelsTo3D();
+            _syncPhotosTo3D();
+        }
+        showToast('3D Terrain view · drag to pan, right-click drag to tilt');
+    } else {
+        btn.classList.remove('terrain-active');
+        el3d.style.display = 'none';
+        el2d.style.display = '';
+        if (map3d) {
+            const c = map3d.getCenter();
+            map.setView([c.lat, c.lng], Math.round(map3d.getZoom() + 1));
+        }
+        map.invalidateSize();
+        showToast('2D Map view');
+    }
+}
+
+function initMap3D(lat, lng, zoom) {
+    map3d = new maplibregl.Map({
+        container: 'map3d',
+        style: {
+            version: 8,
+            sources: {
+                satellite: {
+                    type: 'raster',
+                    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+                    tileSize: 256,
+                    maxzoom: 19,
+                    attribution: 'Imagery © Esri'
+                },
+                terrainSource: {
+                    type: 'raster-dem',
+                    tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+                    tileSize: 256,
+                    encoding: 'terrarium',
+                    maxzoom: 15
+                },
+                hillshadeSource: {
+                    type: 'raster-dem',
+                    tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+                    tileSize: 256,
+                    encoding: 'terrarium',
+                    maxzoom: 15
+                }
+            },
+            layers: [
+                { id: 'satellite', type: 'raster', source: 'satellite' },
+                { id: 'hillshade-terrain', type: 'hillshade', source: 'hillshadeSource', paint: {
+                    'hillshade-illumination-anchor': 'map',
+                    'hillshade-exaggeration': 0.5,
+                    'hillshade-shadow-color': 'rgba(20,14,4,0.30)',
+                    'hillshade-highlight-color': 'rgba(255,244,214,0.22)',
+                    'hillshade-accent-color': 'rgba(59,47,26,0.12)'
+                } }
+            ],
+            terrain: { source: 'terrainSource', exaggeration: 1.4 },
+            sky: {
+                'sky-color': '#0f1117',
+                'sky-horizon-blend': 0.5,
+                'horizon-color': '#1e2235',
+                'horizon-fog-blend': 0.6,
+                'fog-color': '#0a0c12',
+                'fog-ground-blend': 0.5
+            }
+        },
+        center: [lng, lat],
+        zoom: Math.max(zoom - 1, 0),
+        pitch: 60,
+        bearing: 0,
+        maxPitch: 85,
+        attributionControl: false
+    });
+    map3d.addControl(new maplibregl.AttributionControl({ compact: true }));
+    map3d.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-left');
+    map3d.on('load', () => {
+        _map3dLoaded = true;
+        _syncParcelsTo3D();
+        _syncPhotosTo3D();
+    });
+}
+
+function _syncParcelsTo3D() {
+    if (!map3d || !_map3dLoaded) return;
+    const currentIds = new Set(parcels.map(p => p.id));
+    (map3d.getStyle().layers || []).forEach(lyr => {
+        const m = lyr.id.match(/^parcel-(fill|line)-(.+)$/);
+        if (m && !currentIds.has(m[2])) { if (map3d.getLayer(lyr.id)) map3d.removeLayer(lyr.id); }
+    });
+    parcels.forEach(p => {
+        const srcId = 'parcel-src-' + p.id;
+        if (map3d.getSource(srcId)) return; // already added
+        map3d.addSource(srcId, { type: 'geojson', data: p.geojson });
+        map3d.addLayer({ id: 'parcel-fill-' + p.id, type: 'fill', source: srcId, paint: { 'fill-color': p.color, 'fill-opacity': 0.12 } });
+        map3d.addLayer({ id: 'parcel-line-' + p.id, type: 'line', source: srcId, paint: { 'line-color': p.color, 'line-width': 2.5 } });
+    });
+    Object.keys(map3d.getStyle().sources || {}).forEach(srcId => {
+        const m = srcId.match(/^parcel-src-(.+)$/);
+        if (m && !currentIds.has(m[1]) && map3d.getSource(srcId)) map3d.removeSource(srcId);
+    });
+}
+
+function _syncPhotosTo3D() {
+    if (!map3d || !_map3dLoaded) return;
+    _map3dMarkers.forEach(m => m.marker.remove());
+    _map3dMarkers = [];
+    photos.filter(p => p.hasGps).forEach(p => {
+        const el = document.createElement('div');
+        el.className = 'ls-photo-marker-3d';
+        el.style.cssText = 'width:34px;height:34px;border-radius:50%;border:3px solid #f59e0b;background-size:cover;background-position:center;cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,0.7)';
+        el.style.backgroundImage = `url(${p.objUrl})`;
+        el.onclick = () => openPhotoModal(p.id);
+        const marker = new maplibregl.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map3d);
+        _map3dMarkers.push({ id: p.id, marker });
+    });
 }
 
 function toggleLabels() {
@@ -985,16 +1132,25 @@ function _placeAccessPin(parcelId, lat, lng) {
     if (_accessPinMarkers[parcelId]) map.removeLayer(_accessPinMarkers[parcelId]);
     p.accessPin = { lat, lng };
     const marker = L.marker([lat, lng], { icon: _buildAccessPinIcon(), draggable: true }).addTo(map);
-    marker.bindPopup(`<div style="min-width:130px;font-size:12px"><b style="color:#f59e0b">Access Point</b><br><span style="color:#64748b;font-size:10px">${p.name}</span><br><span style="font-family:monospace;font-size:10px;color:#94a3b8">${lat.toFixed(5)}, ${lng.toFixed(5)}</span></div>`);
+    marker.bindPopup(_accessPinPopupHtml(p, lat, lng));
     marker.on('dragend', () => {
         const pos = marker.getLatLng();
         p.accessPin = { lat: pos.lat, lng: pos.lng };
-        marker.setPopupContent(`<div style="min-width:130px;font-size:12px"><b style="color:#f59e0b">Access Point</b><br><span style="color:#64748b;font-size:10px">${p.name}</span><br><span style="font-family:monospace;font-size:10px;color:#94a3b8">${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}</span></div>`);
+        marker.setPopupContent(_accessPinPopupHtml(p, pos.lat, pos.lng));
         renderSidebar();
     });
     _accessPinMarkers[parcelId] = marker;
     renderSidebar();
     showToast('Access pin set — drag to adjust');
+}
+
+function _accessPinPopupHtml(p, lat, lng) {
+    return `<div style="min-width:140px;font-size:12px">
+        <b style="color:#f59e0b">Access Point</b><br>
+        <span style="color:#64748b;font-size:10px">${p.name}</span><br>
+        <span style="font-family:monospace;font-size:10px;color:#94a3b8">${lat.toFixed(5)}, ${lng.toFixed(5)}</span>
+        <button onclick="removeAccessPin('${p.id}')" style="display:block;width:100%;margin-top:7px;padding:5px 8px;background:#2d1515;border:1px solid #7f1d1d;border-radius:5px;color:#f87171;font-size:11px;font-weight:600;cursor:pointer">✕ Remove pin</button>
+    </div>`;
 }
 
 function removeAccessPin(parcelId) {
@@ -1219,6 +1375,7 @@ function renderSidebar() {
             ${p.accessPin ? `<div class="ap-info">📍 ${p.accessPin.lat.toFixed(5)}, ${p.accessPin.lng.toFixed(5)} · <span style="cursor:pointer;color:#f87171;text-decoration:underline" onclick="removeAccessPin('${p.id}')">Remove</span></div>` : ''}
             <div id="sd-${p.id}" class="sd-panel" style="display:none"></div>
         </div>`).join('') : '<div style="padding:10px 12px;font-size:11px;color:#374151;text-align:center">No parcels loaded</div>';
+    if (is3D) { _syncParcelsTo3D(); _syncPhotosTo3D(); }
 }
 function sidebarPhoto(id) { activeSidebarId = id; renderSidebar(); const p = photos.find(x=>x.id===id); if (p?.hasGps) map.flyTo([p.lat,p.lng], Math.max(map.getZoom(),18), { duration:0.7 }); }
 
